@@ -1,0 +1,6 @@
+{
+  "name": "PromptFace",
+  "description": "Solte sua imaginação. Crie fotografias incrivelmente realistas de você em qualquer lugar, situação ou estilo preservando sua identidade facial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

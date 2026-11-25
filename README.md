@@ -1,24 +1,20 @@
-# promptface
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Quero so um projeto sem nada com nome de promptface
+# Run and deploy your AI Studio app
 
-This project was built with [Lovable](https://lovable.dev).
+This contains everything you need to run your app locally.
 
-## Build with Lovable
+View your app in AI Studio: https://ai.studio/apps/8c4c336b-bb16-4f31-bfb6-df30d63fb491
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/2c5028bd-e316-436b-9676-f1e3bbfbdf75).
+## Run Locally
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+**Prerequisites:**  Node.js
 
-## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
