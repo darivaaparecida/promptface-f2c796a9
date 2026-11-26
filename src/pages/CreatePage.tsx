@@ -1065,7 +1065,7 @@ export function CreatePage() {
                         className={`min-h-[68px] flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-center transition-all ${
                           selected
                             ? 'border-violet-600 bg-violet-50 text-violet-950 shadow-sm dark:border-[#8B5CF6] dark:bg-[#7C3AED]/20 dark:text-white'
-                            : 'border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white dark:border-white/12 dark:bg-[#0D0D14] dark:text-[#A1A1AA] dark:hover:border-white/25 dark:hover:text-white'
+                            : 'border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-slate-100 dark:border-white/12 dark:bg-[#0D0D14] dark:text-[#A1A1AA] dark:hover:border-white/25 dark:hover:bg-white/10 dark:hover:text-white'
                         }`}
                       >
                         <span className="flex h-6 items-center justify-center" aria-hidden="true">
