@@ -8,6 +8,7 @@ import { CREDIT_COSTS } from '../shared/rules';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ImageCompareSlider } from '../components/BeforeAfterSlider';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { ExpandableTextField } from '../components/ExpandableTextField';
 
 interface StudioVersion {
   id: string;
@@ -24,13 +25,11 @@ interface GenerationItem {
   createdAt: string;
 }
 
-const QUICK_EDITS = [
-  'Trocar minha roupa por uma jaqueta de couro',
-  'Mudar o cenário para Paris',
-  'Alterar a iluminação para fotografia noturna',
-  'Mudar minha pose',
-  'Adicionar um carro ao fundo',
-  'Transformar em retrato profissional',
+const QUICK_EDIT_GROUPS: { category: string; items: string[] }[] = [
+  { category: 'Roupa', items: ['Trocar minha roupa por uma jaqueta de couro'] },
+  { category: 'Cenário', items: ['Mudar o cenário para Paris', 'Adicionar um carro ao fundo'] },
+  { category: 'Luz', items: ['Alterar a iluminação para fotografia noturna'] },
+  { category: 'Pose', items: ['Mudar minha pose', 'Transformar em retrato profissional'] },
 ];
 
 const STUDIO_LOADING_MESSAGES = [
@@ -101,6 +100,20 @@ export function StudioPage() {
       setCompareMode(false);
     }
   }, [currentDisplayUrl, canCompare]);
+
+  // Mesmo comportamento do antigo <select>: trocar a foto ativa e mostrar
+  // a versão mais recente dela.
+  const handleSelectGeneration = (id: string) => {
+    const next = generations.find((g) => g.id === id);
+    setSelectedId(id);
+    if (next) {
+      const latest =
+        next.versions.length > 0
+          ? next.versions[next.versions.length - 1].url
+          : next.url;
+      setActiveVersionUrl(latest);
+    }
+  };
 
   const handleApplyEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -290,62 +303,86 @@ export function StudioPage() {
         <div className="lg:col-span-5 space-y-6">
           <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-5 shadow-sm dark:shadow-none">
             <div className="space-y-1.5">
-              <label htmlFor="studio-photo-select" className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
+              <span className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
                 Fotografia ativa
-              </label>
-              <select
-                id="studio-photo-select"
-                value={selectedId}
-                onChange={(e) => {
-                  const next = generations.find((g) => g.id === e.target.value);
-                  setSelectedId(e.target.value);
-                  if (next) {
-                    const latest =
-                      next.versions.length > 0
-                        ? next.versions[next.versions.length - 1].url
-                        : next.url;
-                    setActiveVersionUrl(latest);
-                  }
-                }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+              </span>
+              <div
+                role="listbox"
+                aria-label="Fotografia ativa"
+                className="space-y-2 max-h-56 overflow-y-auto pr-0.5"
               >
-                {generations.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.scenarioTitle}
-                  </option>
-                ))}
-              </select>
+                {generations.map((g) => {
+                  const thumbUrl =
+                    g.versions.length > 0
+                      ? g.versions[g.versions.length - 1].url
+                      : g.url;
+                  const active = g.id === selectedId;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => handleSelectGeneration(g.id)}
+                      className={`w-full flex items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition-colors ${
+                        active
+                          ? 'border-violet-700 bg-violet-100 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15'
+                          : 'border-slate-300 bg-slate-50 hover:border-slate-400 dark:border-white/10 dark:bg-[#08080C] dark:hover:border-white/25'
+                      }`}
+                    >
+                      <ImageWithFallback
+                        src={getMediaUrl(thumbUrl)}
+                        alt={g.scenarioTitle}
+                        className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-slate-950 dark:text-white">
+                          {g.scenarioTitle}
+                        </span>
+                        <span className="block text-[11px] text-slate-600 dark:text-[#A1A1AA]">
+                          {g.versions.length > 0
+                            ? `${g.versions.length} ${g.versions.length === 1 ? 'edição' : 'edições'}`
+                            : 'Versão original'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <form onSubmit={handleApplyEdit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label htmlFor="studio-instruction" className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
-                  O que você quer alterar nesta foto?
-                </label>
-                <textarea
-                  id="studio-instruction"
-                  rows={3}
-                  value={instruction}
-                  onChange={(e) => setInstruction(e.target.value)}
-                  placeholder="Ex.: Trocar minha roupa por uma jaqueta de couro preta"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 focus:outline-none focus:border-violet-700 dark:bg-[#08080C] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/55 dark:focus:border-[#8B5CF6]"
-                />
-              </div>
+              <ExpandableTextField
+                id="studio-instruction"
+                label="O que você quer alterar nesta foto?"
+                value={instruction}
+                onChange={setInstruction}
+                placeholder="Ex.: Trocar minha roupa por uma jaqueta de couro preta"
+                defaultRows={3}
+                expandedRows={6}
+              />
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">Sugestões rápidas:</p>
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_EDITS.map((example) => (
-                    <button
-                      key={example}
-                      type="button"
-                      onClick={() => setInstruction(example)}
-                      className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 hover:text-slate-950 hover:border-violet-700 dark:bg-[#08080C] dark:border-white/10 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:border-[#7C3AED] transition-colors text-left"
-                    >
-                      {example}
-                    </button>
-                  ))}
-                </div>
+                {QUICK_EDIT_GROUPS.map((group) => (
+                  <div key={group.category} className="space-y-1.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-[#A855F7]">
+                      {group.category}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.items.map((example) => (
+                        <button
+                          key={example}
+                          type="button"
+                          onClick={() => setInstruction(example)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 hover:text-slate-950 hover:border-violet-700 dark:bg-[#08080C] dark:border-white/10 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:border-[#7C3AED] transition-colors text-left"
+                        >
+                          {example}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {falBlocked && (
@@ -405,14 +442,21 @@ export function StudioPage() {
                 <button
                   type="button"
                   onClick={() => setActiveVersionUrl(selectedGen.url)}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs transition-colors ${
+                  className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl border text-xs transition-colors ${
                     displayUrl === selectedGen.url
                       ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
                       : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
                   }`}
                 >
-                  <span className="font-semibold text-slate-950 dark:text-white block">Versão original</span>
-                  <span className="text-[11px]">{selectedGen.scenarioTitle}</span>
+                  <ImageWithFallback
+                    src={getMediaUrl(selectedGen.url)}
+                    alt="Versão original"
+                    className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
+                  />
+                  <span className="min-w-0 text-left">
+                    <span className="font-semibold text-slate-950 dark:text-white block">Versão original</span>
+                    <span className="text-[11px] block truncate">{selectedGen.scenarioTitle}</span>
+                  </span>
                 </button>
 
                 {selectedGen.versions.map((ver, idx) => (
@@ -420,14 +464,21 @@ export function StudioPage() {
                     key={ver.id}
                     type="button"
                     onClick={() => setActiveVersionUrl(ver.url)}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs transition-colors ${
+                    className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl border text-xs transition-colors ${
                       displayUrl === ver.url
                         ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
                         : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
                     }`}
                   >
-                    <span className="font-semibold text-slate-950 dark:text-white block">Edição v{idx + 1}</span>
-                    <span className="text-[11px] line-clamp-1">{ver.instruction}</span>
+                    <ImageWithFallback
+                      src={getMediaUrl(ver.url)}
+                      alt={`Edição v${idx + 1}`}
+                      className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
+                    />
+                    <span className="min-w-0 text-left">
+                      <span className="font-semibold text-slate-950 dark:text-white block">Edição v{idx + 1}</span>
+                      <span className="text-[11px] line-clamp-1 block">{ver.instruction}</span>
+                    </span>
                   </button>
                 ))}
               </div>

@@ -24,6 +24,7 @@ import {
   resolveProfileAvatarDisplay,
 } from '../shared/defaultAvatars';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { ExpandableTextField } from '../components/ExpandableTextField';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 
@@ -38,6 +39,18 @@ const EMPTY_PROFILE: VisualProfileData = {
   otherCharacteristics: '',
   preferredModel: DEFAULT_PREFERRED_AI_MODEL,
 };
+
+// Os 8 campos de texto do formulário; a completude soma eles + 1 foto (9 itens).
+const PROFILE_TEXT_FIELDS: (keyof VisualProfileData)[] = [
+  'eyeColor',
+  'hairColorStyle',
+  'hairType',
+  'beardMustache',
+  'skinTone',
+  'facialFeatures',
+  'heightBodyType',
+  'otherCharacteristics',
+];
 
 export function VisualProfilePage() {
   const { user, getMediaUrl, refreshUser } = useAuth();
@@ -61,6 +74,12 @@ export function VisualProfilePage() {
     ? normalizePreferredAiModel(profile.preferredModel)
     : 'auto';
   const selectedModelOption = getPreferredAiModelOption(effectivePreferredModel);
+  const filledTextFields = PROFILE_TEXT_FIELDS.filter(
+    (key) => String(profile[key] ?? '').trim() !== ''
+  ).length;
+  const hasReferencePhoto = faces.length > 0;
+  const completedItems = filledTextFields + (hasReferencePhoto ? 1 : 0);
+  const completionPercent = Math.round((completedItems / 9) * 100);
   const avatarDisplay = resolveProfileAvatarDisplay({
     faces,
     seed: user?.id || user?.email,
@@ -382,6 +401,36 @@ export function VisualProfilePage() {
         </p>
 
         <form onSubmit={handleSaveProfile} className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#08080C] px-4 py-3.5 space-y-2">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-semibold text-slate-950 dark:text-white">
+                Completude do Perfil Visual
+              </span>
+              <span className="font-mono-num text-slate-700 dark:text-[#A1A1AA] shrink-0">
+                {completedItems} de 9 itens · {completionPercent}%
+              </span>
+            </div>
+            <div
+              className="h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden"
+              role="progressbar"
+              aria-valuenow={completionPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Completude do Perfil Visual"
+            >
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#A855F7] to-[#EC4899] transition-all"
+                style={{ width: `${completionPercent}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-[#A1A1AA]">
+              {filledTextFields} de 8 campos preenchidos ·{' '}
+              {hasReferencePhoto
+                ? `${faces.length} ${faces.length === 1 ? 'foto de referência' : 'fotos de referência'}`
+                : 'nenhuma foto de referência ainda'}
+            </p>
+          </div>
+
           {[
             { key: 'eyeColor', label: 'Cor dos olhos', placeholder: 'Ex.: Castanhos escuros' },
             {
@@ -401,11 +450,6 @@ export function VisualProfilePage() {
               key: 'heightBodyType',
               label: 'Altura e tipo físico',
               placeholder: 'Ex.: 1,78m, porte atlético / médio',
-            },
-            {
-              key: 'otherCharacteristics',
-              label: 'Outras características visuais',
-              placeholder: 'Ex.: Tatuagem discreta no antebraço',
             },
           ].map((field) => (
             <div key={field.key} className="space-y-1.5">
@@ -428,16 +472,27 @@ export function VisualProfilePage() {
             </div>
           ))}
 
+          <div className="sm:col-span-2">
+            <ExpandableTextField
+              id="vp-otherCharacteristics"
+              label="Outras características visuais"
+              value={profile.otherCharacteristics || ''}
+              onChange={(value) =>
+                setProfile((prev) => ({ ...prev, otherCharacteristics: value }))
+              }
+              placeholder="Ex.: Tatuagem discreta no antebraço"
+              defaultRows={2}
+              expandedRows={5}
+            />
+          </div>
+
           <div className="sm:col-span-2 pt-4 mt-2 border-t border-slate-200 dark:border-white/10 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <label
-                  htmlFor="vp-preferredModel"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white"
-                >
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white">
                   <Cpu className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
                   <span>Modelo de IA preferido para gerações futuras</span>
-                </label>
+                </span>
                 <p className="mt-0.5 text-xs text-slate-700 dark:text-[#A1A1AA]">
                   Define qual motor de geração será priorizado nas suas próximas fotografias e edições.
                   Só aparecem os modelos incluídos no seu plano.
@@ -448,38 +503,47 @@ export function VisualProfilePage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-              <div className="md:col-span-6">
-                <select
-                  id="vp-preferredModel"
-                  aria-label="Modelo de IA preferido para gerações futuras"
-                  value={effectivePreferredModel}
-                  onChange={(e) =>
-                    setProfile((prev) => ({
-                      ...prev,
-                      preferredModel: normalizePreferredAiModel(e.target.value),
-                    }))
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white focus:outline-none focus:border-[#8B5CF6]"
-                >
-                  {PREFERRED_AI_MODELS.filter((modelOption) =>
-                    allowedModelIds.includes(modelOption.id)
-                  ).map((modelOption) => (
-                    <option key={modelOption.id} value={modelOption.id}>
-                      {modelOption.label} — {modelOption.badge}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div
-                data-testid="preferred-model-summary"
-                className="md:col-span-6 rounded-xl border border-slate-300 bg-slate-50 dark:border-white/10 dark:bg-[#08080C] px-3.5 py-2.5 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed"
-              >
-                <span className="font-semibold text-slate-950 dark:text-white">
-                  {selectedModelOption.label}:
-                </span>{' '}
-                {selectedModelOption.description}
-              </div>
+            <div
+              role="radiogroup"
+              aria-label="Modelo de IA preferido para gerações futuras"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+            >
+              {PREFERRED_AI_MODELS.filter((modelOption) =>
+                allowedModelIds.includes(modelOption.id)
+              ).map((modelOption) => {
+                const selected = effectivePreferredModel === modelOption.id;
+                return (
+                  <button
+                    key={modelOption.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        preferredModel: modelOption.id,
+                      }))
+                    }
+                    className={`text-left rounded-xl border p-4 space-y-1.5 transition-colors ${
+                      selected
+                        ? 'border-violet-600 bg-violet-50 dark:border-[#8B5CF6] dark:bg-[#7C3AED]/15'
+                        : 'border-slate-300 bg-white hover:border-slate-400 dark:border-white/15 dark:bg-[#08080C] dark:hover:border-white/30'
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-slate-950 dark:text-white">
+                        {modelOption.label}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-violet-600/40 bg-violet-50 text-[11px] font-medium text-violet-950 dark:border-[#8B5CF6]/45 dark:bg-[#7C3AED]/15 dark:text-violet-100 shrink-0">
+                        {modelOption.badge}
+                      </span>
+                    </span>
+                    <span className="block text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+                      {modelOption.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

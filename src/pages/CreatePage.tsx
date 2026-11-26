@@ -13,12 +13,14 @@ import {
   PenLine,
   RefreshCw,
   RotateCcw,
+  Search,
   Share2,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   UserCheck,
   Wand2,
+  X,
 } from 'lucide-react';
 import {
   CATEGORIES,
@@ -87,6 +89,8 @@ export function CreatePage() {
   const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId);
+  const [scenarioPickerOpen, setScenarioPickerOpen] = useState(false);
+  const [scenarioPickerQuery, setScenarioPickerQuery] = useState('');
 
   // Visual profile pre-check
   const [faces, setFaces] = useState<FaceSummary[]>([]);
@@ -132,6 +136,21 @@ export function CreatePage() {
     () => scenarios.find((s) => s.id === selectedScenarioId) || scenarios[0],
     [scenarios, selectedScenarioId]
   );
+
+  const pickerScenarios = useMemo(() => {
+    const q = scenarioPickerQuery.trim().toLowerCase();
+    if (!q) return scenarios;
+    return scenarios.filter((s) => s.title.toLowerCase().includes(q));
+  }, [scenarios, scenarioPickerQuery]);
+
+  useEffect(() => {
+    if (!scenarioPickerOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setScenarioPickerOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [scenarioPickerOpen]);
 
   // O catálogo (cenários) vem do código (src/shared/catalog.ts) — o estado
   // já nasce com INITIAL_SCENARIOS e não há busca no servidor nesta fase.
@@ -462,7 +481,7 @@ export function CreatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 space-y-6 sm:space-y-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 pb-24 sm:pb-24 lg:pb-12 space-y-6 sm:space-y-8">
       {/* Studio Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-200 dark:border-white/10">
         <div>
@@ -786,6 +805,15 @@ export function CreatePage() {
                       </select>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setScenarioPickerOpen(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 bg-white hover:bg-violet-50 dark:border-[#7C3AED] dark:bg-transparent dark:text-white dark:hover:bg-[#7C3AED]/15 transition-colors"
+                  >
+                    <LayoutGrid className="w-4 h-4" aria-hidden="true" />
+                    <span>Escolher vendo as fotos</span>
+                  </button>
 
                   {selectedScenario && (
                     <div className="rounded-xl border border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-[#0D0D14] p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -1285,6 +1313,148 @@ export function CreatePage() {
               </p>
             </div>
           </aside>
+        </div>
+      )}
+
+      {/* Mobile: barra inferior fixa com custo e confirmação (só abaixo de lg) */}
+      {!generating && !betaWaitlistMode && (
+        <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden border-t border-slate-200 bg-white/95 dark:border-white/10 dark:bg-[#12121A]/95 backdrop-blur px-4 py-3">
+          <div className="mx-auto max-w-6xl flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] text-slate-600 dark:text-[#A1A1AA]">Custo da geração</p>
+              <p className="text-sm font-semibold text-slate-950 dark:text-white font-mono-num truncate">
+                {CREDIT_COSTS.generate} créditos · Saldo {user?.credits ?? 0}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={!hasFaces || !hasEnoughCredits || falBlocked || generating}
+              onClick={() => runGeneration(false)}
+              className="shrink-0 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-[11px] font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
+            >
+              {generating && <ButtonSpinner size="sm" />}
+              <span>
+                {generating
+                  ? 'Gerando fotografia...'
+                  : falBlocked
+                  ? `Limite gratuito (${falQuota?.limit ?? 12}) atingido`
+                  : `Confirmar e gerar foto (${CREDIT_COSTS.generate} créditos)`}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: escolher cenário vendo as fotos */}
+      {scenarioPickerOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Escolher cenário vendo as fotos"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center sm:justify-center"
+          onClick={() => setScenarioPickerOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-2xl max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-white dark:bg-[#12121A] border border-slate-300 dark:border-white/15 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 pt-4 pb-3 border-b border-slate-200 dark:border-white/10 space-y-3 shrink-0">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">
+                    Escolher vendo as fotos
+                  </h2>
+                  <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">
+                    {pickerScenarios.length}{' '}
+                    {pickerScenarios.length === 1 ? 'cenário' : 'cenários'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Fechar escolha de cenário"
+                  onClick={() => setScenarioPickerOpen(false)}
+                  className="min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
+                >
+                  <X className="w-5 h-5" aria-hidden="true" />
+                </button>
+              </div>
+              <div className="relative">
+                <Search
+                  className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-[#A1A1AA] pointer-events-none"
+                  aria-hidden="true"
+                />
+                <input
+                  type="text"
+                  value={scenarioPickerQuery}
+                  onChange={(e) => setScenarioPickerQuery(e.target.value)}
+                  placeholder="Buscar cenário (ex.: Dubai, CEO, Paris)"
+                  aria-label="Buscar cenário"
+                  className="w-full min-h-[44px] pl-10 pr-9 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 dark:bg-[#17171F] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/70 focus:outline-none focus:border-[#8B5CF6]"
+                />
+                {scenarioPickerQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setScenarioPickerQuery('')}
+                    aria-label="Limpar busca"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-600 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-y-auto px-4 sm:px-5 py-4">
+              {pickerScenarios.length === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-[#A1A1AA] text-center py-8">
+                  Nenhum cenário encontrado para &ldquo;{scenarioPickerQuery.trim()}&rdquo;.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {pickerScenarios.map((s) => {
+                    const active = s.id === selectedScenarioId;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedScenarioId(s.id);
+                          setScenarioPickerOpen(false);
+                        }}
+                        aria-pressed={active}
+                        className={`text-left rounded-2xl border overflow-hidden transition-colors ${
+                          active
+                            ? 'border-violet-600 ring-2 ring-violet-600/40 dark:border-[#8B5CF6]'
+                            : 'border-slate-300 dark:border-white/10 hover:border-violet-500 dark:hover:border-[#8B5CF6]/60'
+                        }`}
+                      >
+                        <span className="relative block aspect-[4/3] overflow-hidden bg-slate-900">
+                          <ImageWithFallback
+                            src={getMediaUrl(s.image)}
+                            alt={s.title}
+                            className="w-full h-full object-cover object-top"
+                          />
+                          {active && (
+                            <span className="absolute top-2 right-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#7C3AED] text-white">
+                              <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                            </span>
+                          )}
+                        </span>
+                        <span className="block p-3">
+                          <span className="block text-[11px] text-slate-600 dark:text-[#A1A1AA] truncate">
+                            {s.categoryName}
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-950 dark:text-white line-clamp-2">
+                            {s.title}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
