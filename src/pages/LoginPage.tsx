@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import {
   ArrowRight,
-  Check,
   KeyRound,
   Lock,
   Mail,
@@ -780,75 +779,71 @@ export function LoginPage() {
             </div>
 
             {/* Refined Plans Summary */}
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <h2 className="font-display text-xl font-bold text-slate-950 dark:text-white">
-                  Planos claros, sem surpresas
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
-                  Você começa com <strong className="text-slate-950 dark:text-white">10 créditos grátis</strong> (1 foto gratuita). Depois, escolha quando quiser assinar:
-                </p>
+            <div className="space-y-3.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="space-y-1">
+                  <h2 className="font-display text-lg sm:text-xl font-bold text-slate-950 dark:text-white">
+                    Planos claros, sem surpresas
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-[#A1A1AA]">
+                    Comece com <strong className="text-slate-950 dark:text-white">10 créditos grátis</strong> (1 foto gratuita) e escolha depois:
+                  </p>
+                </div>
+                <Link
+                  to="/planos"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:text-violet-900 dark:text-[#C4B5FD] dark:hover:text-white transition-colors whitespace-nowrap shrink-0"
+                >
+                  <span>Ver detalhes</span>
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </Link>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-2.5">
                 {INITIAL_PLANS.map((plan) => {
                   const isPremium = plan.id === 'premium';
                   const yearly = getPlanCyclePricing(plan, 'yearly');
                   return (
                     <div
                       key={plan.id}
-                      className={`relative rounded-xl border p-3.5 flex flex-col justify-between gap-3 transition-colors ${
+                      className={`rounded-xl border px-3.5 sm:px-4 py-3 space-y-2 transition-colors ${
                         isPremium
-                          ? 'border-violet-600 bg-violet-50/75 dark:border-[#8B5CF6]/55 dark:bg-[#0B0B11] dark:bg-gradient-to-b dark:from-[#21153A] dark:via-[#110E1B] dark:to-[#08080C] shadow-md shadow-[#7C3AED]/10'
+                          ? 'border-violet-600 bg-violet-50/75 dark:border-[#8B5CF6]/55 dark:bg-[#0B0B11] dark:bg-gradient-to-r dark:from-[#21153A] dark:via-[#141022] dark:to-[#0B0B11]'
                           : 'border-slate-300 bg-slate-50 dark:border-white/10 dark:bg-[#0B0B11]'
                       }`}
                     >
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-display text-sm font-bold tracking-wide text-slate-950 dark:text-white uppercase">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-display text-sm font-bold tracking-wide text-slate-950 dark:text-white uppercase whitespace-nowrap">
                             {plan.name}
                           </span>
                           {isPremium && (
-                            <span className="px-2 py-0.5 rounded-md bg-violet-700 border border-violet-800 text-white dark:bg-[#7C3AED]/25 dark:border-[#8B5CF6]/40 text-[10px] font-semibold uppercase tracking-wider dark:text-[#E9D5FF] whitespace-nowrap shrink-0">
-                              Popular
+                            <span className="text-[11px] font-semibold text-violet-700 dark:text-[#C4B5FD] whitespace-nowrap">
+                              · Popular
                             </span>
                           )}
                         </div>
 
-                        <div>
-                          <p className="text-[11px] text-slate-600 dark:text-[#A1A1AA]">A partir de</p>
-                          <div className="flex items-baseline gap-1">
-                            <span className="font-display text-xl font-bold text-slate-950 dark:text-white font-mono-num">
-                              {yearly.monthlyEquivalentFormatted}
-                            </span>
-                            <span className="text-xs text-slate-700 dark:text-[#A1A1AA]">/mês</span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 dark:text-[#A1A1AA] font-mono-num">
-                            ou {plan.priceFormatted}/mês no mensal
-                          </p>
-                          <PlanSavingsBadge
-                            cyclePricing={yearly}
-                            variant="compact"
-                            testId={`login-plan-savings-badge-${plan.id}`}
-                            className="mt-2 max-w-full"
-                          />
+                        <div className="flex items-baseline gap-1 shrink-0 whitespace-nowrap">
+                          <span className="font-display text-base sm:text-lg font-bold text-slate-950 dark:text-white font-mono-num">
+                            {yearly.monthlyEquivalentFormatted}
+                          </span>
+                          <span className="text-[11px] text-slate-700 dark:text-[#A1A1AA]">/mês</span>
+                          <span className="text-[10px] text-slate-600 dark:text-[#A1A1AA] hidden sm:inline">
+                            no anual
+                          </span>
                         </div>
+                      </div>
 
-                        <p className="text-xs font-semibold text-violet-800 dark:text-[#C4B5FD] font-mono-num">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num whitespace-nowrap">
                           {plan.creditsMonthly} créd · {plan.maxPhotosMonthly} fotos/mês
                         </p>
 
-                        <ul className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-white/10">
-                          {plan.features.slice(0, 2).map((f) => (
-                            <li key={f} className="flex items-start gap-1.5 text-[11px] text-slate-800 dark:text-white/90 leading-snug">
-                              <Check
-                                className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7] shrink-0 mt-0.5"
-                                aria-hidden="true"
-                              />
-                              <span>{f}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <PlanSavingsBadge
+                          cyclePricing={yearly}
+                          variant="compact"
+                          testId={`login-plan-savings-badge-${plan.id}`}
+                        />
                       </div>
                     </div>
                   );

@@ -62,19 +62,14 @@ export function PlanSavingsBadge({
   return (
     <div
       data-testid={testId ?? `plan-savings-badge-${info.interval}`}
-      className={`inline-flex w-fit max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${containerTone} ${className}`}
+      className={`inline-flex w-fit max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${containerTone} ${className}`}
     >
-      <div className="inline-flex items-center gap-1.5">
-        <BadgePercent className={`w-4 h-4 shrink-0 ${iconTone}`} aria-hidden="true" />
-        <span className="tabular-nums font-semibold whitespace-nowrap">{info.headline}</span>
-      </div>
+      <BadgePercent className={`w-4 h-4 shrink-0 ${iconTone}`} aria-hidden="true" />
+      <span className="tabular-nums font-semibold whitespace-nowrap">{info.headline}</span>
       <span
         className={`pl-2 border-l ${dividerTone} tabular-nums font-bold whitespace-nowrap`}
       >
         {info.discountTag}
-      </span>
-      <span className="text-[11px] opacity-85 whitespace-nowrap">
-        · {info.retentionTag}
       </span>
     </div>
   );
