@@ -3,18 +3,25 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpRight,
   Check,
+  CheckCircle2,
   Copy,
   Download,
   Heart,
+  LayoutGrid,
+  PenLine,
   RefreshCw,
+  RotateCcw,
   Share2,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   UserCheck,
   Wand2,
 } from 'lucide-react';
 import {
+  CATEGORIES,
   CUSTOMIZATION_OPTIONS,
   INITIAL_SCENARIOS,
   type ScenarioItem,
@@ -30,6 +37,7 @@ import { getVisualProfile, joinWaitlist, listFaces, toggleFavorite } from '../li
 import { useToast } from '../context/ToastContext';
 import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { ExpandableTextField } from '../components/ExpandableTextField';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 
@@ -56,6 +64,13 @@ const LOADING_MESSAGES = [
   'Preservando texturas naturais...',
 ];
 
+const ASPECT_RATIO_UI: Record<string, { shortName: string; frameClass: string }> = {
+  '3:4': { shortName: 'Retrato', frameClass: 'w-4 h-5' },
+  '1:1': { shortName: 'Quadrado', frameClass: 'w-[18px] h-[18px]' },
+  '16:9': { shortName: 'Paisagem', frameClass: 'w-6 h-3.5' },
+  '9:16': { shortName: 'Stories', frameClass: 'w-3 h-5' },
+};
+
 export function CreatePage() {
   const { user, config, updateCredits, refreshConfig, getMediaUrl } = useAuth();
   const { addToast } = useToast();
@@ -69,7 +84,8 @@ export function CreatePage() {
   const initialScenarioId = searchParams.get('cenario') || INITIAL_SCENARIOS[0].id;
 
   const [mode, setMode] = useState<'preset' | 'free'>(initialMode);
-  const [scenarios, setScenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
+  const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId);
 
   // Visual profile pre-check
@@ -90,10 +106,10 @@ export function CreatePage() {
   // Free mode
   const [freePrompt, setFreePrompt] = useState(initialPromptParam);
   const [enhancedDraft, setEnhancedDraft] = useState<string | null>(null);
-  const [enhancing, setEnhancing] = useState(false);
+  const [enhancing] = useState(false);
 
   // Generation flow
-  const [generating, setGenerating] = useState(false);
+  const [generating] = useState(false);
   const [togglingFavorite, setTogglingFavorite] = useState(false);
   const [submittingWaitlist, setSubmittingWaitlist] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
@@ -103,6 +119,14 @@ export function CreatePage() {
   const [waitlistFeedback, setWaitlistFeedback] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [copiedNotice, setCopiedNotice] = useState(false);
+
+  void updateCredits;
+  void refreshConfig;
+
+  const filteredScenarios = useMemo(() => {
+    if (selectedCategoryFilter === 'all') return scenarios;
+    return scenarios.filter((s) => s.categoryId === selectedCategoryFilter);
+  }, [scenarios, selectedCategoryFilter]);
 
   const selectedScenario = useMemo(
     () => scenarios.find((s) => s.id === selectedScenarioId) || scenarios[0],
@@ -153,6 +177,24 @@ export function CreatePage() {
     }, 1800);
     return () => clearInterval(timer);
   }, [generating]);
+
+  const handleCategoryChange = (categoryId: string) => {
+    setSelectedCategoryFilter(categoryId);
+    if (categoryId === 'all') return;
+    const matches = scenarios.filter((s) => s.categoryId === categoryId);
+    if (matches.length > 0 && !matches.some((s) => s.id === selectedScenarioId)) {
+      setSelectedScenarioId(matches[0].id);
+    }
+  };
+
+  const handleRestoreDefaults = () => {
+    if (!selectedScenario) return;
+    setOutfit(selectedScenario.defaultOutfit);
+    setEnvironment(selectedScenario.defaultEnvironment);
+    setPose(selectedScenario.defaultPose);
+    setLighting(selectedScenario.defaultLighting);
+    setStyle(selectedScenario.defaultStyle);
+  };
 
   const handleModeSwitch = (nextMode: 'preset' | 'free') => {
     setMode(nextMode);
@@ -248,10 +290,33 @@ export function CreatePage() {
     getMediaUrl,
   });
 
+  const isOutfitEdited = Boolean(
+    mode === 'preset' && selectedScenario && outfit !== selectedScenario.defaultOutfit
+  );
+  const isEnvEdited = Boolean(
+    mode === 'preset' && selectedScenario && environment !== selectedScenario.defaultEnvironment
+  );
+  const isPoseEdited = Boolean(
+    mode === 'preset' && selectedScenario && pose !== selectedScenario.defaultPose
+  );
+  const hasAnyCustomization = Boolean(
+    mode === 'preset' &&
+      selectedScenario &&
+      (isOutfitEdited ||
+        isEnvEdited ||
+        isPoseEdited ||
+        lighting !== selectedScenario.defaultLighting ||
+        style !== selectedScenario.defaultStyle)
+  );
+
+  const selectedRatioMeta =
+    CUSTOMIZATION_OPTIONS.aspectRatios.find((r) => r.id === aspectRatio) ||
+    CUSTOMIZATION_OPTIONS.aspectRatios[0];
+
   // RESULT SCREEN
   if (result) {
     return (
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <button
             type="button"
@@ -263,7 +328,8 @@ export function CreatePage() {
           </button>
 
           <p className="text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
-            Créditos restantes: <strong className="text-slate-950 dark:text-white">{user?.credits ?? 0}</strong>
+            Créditos restantes:{' '}
+            <strong className="text-slate-950 dark:text-white">{user?.credits ?? 0}</strong>
           </p>
         </div>
 
@@ -350,7 +416,9 @@ export function CreatePage() {
                     <ButtonSpinner size="md" />
                   ) : (
                     <Heart
-                      className={`w-4 h-4 ${result.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''}`}
+                      className={`w-4 h-4 ${
+                        result.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
+                      }`}
                       aria-hidden="true"
                     />
                   )}
@@ -373,7 +441,10 @@ export function CreatePage() {
               >
                 {copiedNotice ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                    <Check
+                      className="w-4 h-4 text-emerald-600 dark:text-emerald-400"
+                      aria-hidden="true"
+                    />
                     Link copiado para compartilhar
                   </>
                 ) : (
@@ -391,19 +462,26 @@ export function CreatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 space-y-6 sm:space-y-8">
+      {/* Studio Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-200 dark:border-white/10">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
             Estúdio de geração
           </p>
-          <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white">
+          <h1 className="mt-1.5 font-display text-2xl sm:text-3xl font-bold text-slate-950 dark:text-white">
             Criar nova fotografia
           </h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-[#A1A1AA]">
+            Escolha um cenário pronto ou descreva uma cena livre, personalize os detalhes e revise antes de confirmar.
+          </p>
         </div>
 
-        <div className="text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num">
-          Seu saldo: <strong className="text-slate-950 dark:text-white">{user?.credits ?? 0} créditos</strong>
+        <div className="inline-flex items-center gap-3 self-start md:self-auto rounded-xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] px-4 py-2.5 shadow-sm dark:shadow-none">
+          <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">Seu saldo</span>
+          <span className="text-sm font-bold text-slate-950 dark:text-white font-mono-num">
+            {user?.credits ?? 0} créditos
+          </span>
         </div>
       </div>
 
@@ -432,13 +510,13 @@ export function CreatePage() {
           </div>
           <Link
             to="/perfil-visual"
-            className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white whitespace-nowrap shrink-0 hover:brightness-110 transition-all"
           >
             Enviar meu rosto agora
           </Link>
         </div>
       ) : (
-        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] px-5 py-4 flex flex-wrap items-center justify-between gap-4 shadow-sm dark:shadow-none">
+        <div className="rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-[#17171F] px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-sm dark:shadow-none">
           <div className="flex items-center gap-3.5">
             <ProfileAvatar
               faces={faces}
@@ -448,21 +526,26 @@ export function CreatePage() {
             />
             <div>
               <p className="text-sm font-medium text-slate-950 dark:text-white flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0" aria-hidden="true" />
+                <UserCheck
+                  className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0"
+                  aria-hidden="true"
+                />
                 <span>
-                  Perfil Visual ativo ({faces.length} {faces.length === 1 ? 'foto de referência' : 'fotos de referência'})
+                  Perfil Visual ativo ({faces.length}{' '}
+                  {faces.length === 1 ? 'foto de referência' : 'fotos de referência'})
                 </span>
               </p>
-              <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
-                Suas referências privadas serão usadas para preservar seu rosto nesta criação.
+              <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">
+                Suas referências privadas preservam seu rosto em qualquer cenário ou iluminação.
               </p>
             </div>
           </div>
           <Link
             to="/perfil-visual"
-            className="text-xs font-semibold text-violet-700 dark:text-[#8B5CF6] hover:underline whitespace-nowrap"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-violet-700 dark:text-[#A855F7] hover:underline whitespace-nowrap"
           >
-            Gerenciar Perfil Visual
+            <span>Gerenciar Perfil Visual</span>
+            <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
           </Link>
         </div>
       )}
@@ -471,13 +554,17 @@ export function CreatePage() {
       {!hasEnoughCredits && (
         <div className="rounded-2xl border border-amber-600/45 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-950/25 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+            <AlertCircle
+              className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
             <div>
               <p className="text-sm font-semibold text-amber-950 dark:text-white">
                 Saldo baixo para novas gerações
               </p>
               <p className="text-xs text-amber-900 dark:text-[#A1A1AA]">
-                Você possui {user?.credits ?? 0} créditos. Cada foto gerada custa {CREDIT_COSTS.generate} créditos.
+                Você possui {user?.credits ?? 0} créditos. Cada foto gerada custa{' '}
+                {CREDIT_COSTS.generate} créditos.
               </p>
             </div>
           </div>
@@ -490,29 +577,76 @@ export function CreatePage() {
         </div>
       )}
 
-      {/* Mode Selector */}
-      <div className="inline-flex p-1 rounded-xl bg-slate-200 border border-slate-300 dark:bg-[#17171F] dark:border-white/10">
+      {/* Mode Selector — Studio Segmented Cards */}
+      <div
+        role="tablist"
+        aria-label="Modo de criação"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1.5 rounded-2xl border border-slate-300 bg-slate-100/90 dark:border-white/10 dark:bg-[#111118]"
+      >
         <button
           type="button"
+          role="tab"
+          aria-selected={mode === 'preset'}
           onClick={() => handleModeSwitch('preset')}
-          className={`px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors ${
+          className={`text-left flex items-start gap-3.5 px-4 py-3.5 rounded-xl transition-all ${
             mode === 'preset'
-              ? 'bg-[#7C3AED] text-white'
-              : 'text-slate-700 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white'
+              ? 'bg-white border border-violet-500/60 shadow-sm dark:bg-[#1C1C28] dark:border-[#8B5CF6]/70 dark:shadow-none'
+              : 'border border-transparent hover:bg-white/60 dark:hover:bg-white/5'
           }`}
         >
-          Modo 1 · Criação Pronta
+          <span
+            className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+              mode === 'preset'
+                ? 'bg-[#7C3AED] text-white'
+                : 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-[#A1A1AA]'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#A855F7]">
+              Modo 1
+            </span>
+            <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+              Criação Pronta
+            </span>
+            <span className="block text-xs text-slate-600 dark:text-[#A1A1AA] mt-0.5">
+              Escolha entre 84 cenários prontos e ajuste roupa, ambiente e pose.
+            </span>
+          </span>
         </button>
+
         <button
           type="button"
+          role="tab"
+          aria-selected={mode === 'free'}
           onClick={() => handleModeSwitch('free')}
-          className={`px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors ${
+          className={`text-left flex items-start gap-3.5 px-4 py-3.5 rounded-xl transition-all ${
             mode === 'free'
-              ? 'bg-[#7C3AED] text-white'
-              : 'text-slate-700 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white'
+              ? 'bg-white border border-violet-500/60 shadow-sm dark:bg-[#1C1C28] dark:border-[#8B5CF6]/70 dark:shadow-none'
+              : 'border border-transparent hover:bg-white/60 dark:hover:bg-white/5'
           }`}
         >
-          Modo 2 · Criação Livre
+          <span
+            className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+              mode === 'free'
+                ? 'bg-[#7C3AED] text-white'
+                : 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-[#A1A1AA]'
+            }`}
+          >
+            <PenLine className="w-4 h-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#A855F7]">
+              Modo 2
+            </span>
+            <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+              Criação Livre
+            </span>
+            <span className="block text-xs text-slate-600 dark:text-[#A1A1AA] mt-0.5">
+              Descreva qualquer cena do zero com suas próprias palavras.
+            </span>
+          </span>
         </button>
       </div>
 
@@ -559,7 +693,9 @@ export function CreatePage() {
               <span>{submittingWaitlist ? 'Enviando...' : 'Entrar na lista'}</span>
             </button>
           </form>
-          {waitlistFeedback && <p className="text-xs text-violet-700 dark:text-[#8B5CF6]">{waitlistFeedback}</p>}
+          {waitlistFeedback && (
+            <p className="text-xs text-violet-700 dark:text-[#8B5CF6]">{waitlistFeedback}</p>
+          )}
           <button
             type="button"
             onClick={() => setBetaWaitlistMode(false)}
@@ -569,172 +705,304 @@ export function CreatePage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Form */}
-          <div className="lg:col-span-7 rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-6 shadow-sm dark:shadow-none">
-            {mode === 'preset' ? (
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="select-scenario" className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
-                    Cenário selecionado (84 opções em 14 categorias)
-                  </label>
-                  <select
-                    id="select-scenario"
-                    value={selectedScenarioId}
-                    onChange={(e) => setSelectedScenarioId(e.target.value)}
-                    className="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 focus:outline-none focus:border-violet-700 dark:bg-[#08080C] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* Left Studio Workspace */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* Step 1: Scenario or Free Prompt */}
+            <section
+              aria-labelledby="step-1-heading"
+              className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 space-y-5 shadow-sm dark:shadow-none"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-violet-100 text-xs font-bold font-mono-num text-violet-800 dark:bg-[#7C3AED]/25 dark:text-[#C4B5FD]">
+                    1
+                  </span>
+                  <h2
+                    id="step-1-heading"
+                    className="font-display text-base font-semibold text-slate-950 dark:text-white"
                   >
-                    {scenarios.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.categoryName} — {s.title}
-                      </option>
-                    ))}
-                  </select>
+                    {mode === 'preset' ? 'Cenário de referência' : 'Descreva a cena desejada'}
+                  </h2>
                 </div>
 
-                {selectedScenario && (
-                  <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 border border-slate-300 dark:bg-[#08080C] dark:border-white/10">
-                    <ImageWithFallback
-                      src={selectedScenario.image}
-                      alt={selectedScenario.title}
-                      className="w-16 h-20 rounded-lg object-cover shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">{selectedScenario.categoryName}</p>
-                      <p className="text-sm font-semibold text-slate-950 dark:text-white truncate">
-                        {selectedScenario.title}
-                      </p>
-                      <p className="text-xs text-slate-700 dark:text-[#A1A1AA] line-clamp-2 mt-0.5">
-                        {selectedScenario.description}
-                      </p>
-                    </div>
-                  </div>
+                {mode === 'preset' && (
+                  <Link
+                    to="/cenarios"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-violet-700 hover:text-violet-900 dark:text-[#A855F7] dark:hover:text-white transition-colors"
+                  >
+                    <span>Explorar galeria visual (84)</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </Link>
                 )}
               </div>
-            ) : (
-              <div className="space-y-3">
-                <label htmlFor="free-prompt" className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
-                  Descreva exatamente onde quer estar e como quer aparecer
-                </label>
-                <textarea
-                  id="free-prompt"
-                  rows={5}
-                  value={freePrompt}
-                  onChange={(e) => setFreePrompt(e.target.value)}
-                  placeholder="Quero estar em Dubai, encostado em uma Lamborghini preta, usando uma roupa social elegante, durante o pôr do sol, com fotografia profissional realista."
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 focus:outline-none focus:border-violet-700 dark:bg-[#08080C] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/55 dark:focus:border-[#8B5CF6]"
-                />
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              {mode === 'preset' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <div className="sm:col-span-5 space-y-1.5">
+                      <label
+                        htmlFor="select-category"
+                        className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]"
+                      >
+                        Categoria
+                      </label>
+                      <select
+                        id="select-category"
+                        value={selectedCategoryFilter}
+                        onChange={(e) => handleCategoryChange(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 focus:outline-none focus:border-violet-700 dark:bg-[#0D0D14] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
+                      >
+                        <option value="all">Todas as categorias ({scenarios.length})</option>
+                        {CATEGORIES.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-7 space-y-1.5">
+                      <label
+                        htmlFor="select-scenario"
+                        className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]"
+                      >
+                        Cenário ({filteredScenarios.length}{' '}
+                        {filteredScenarios.length === 1 ? 'opção' : 'opções'})
+                      </label>
+                      <select
+                        id="select-scenario"
+                        value={selectedScenarioId}
+                        onChange={(e) => setSelectedScenarioId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 focus:outline-none focus:border-violet-700 dark:bg-[#0D0D14] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
+                      >
+                        {filteredScenarios.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {selectedCategoryFilter === 'all'
+                              ? `${s.categoryName} — ${s.title}`
+                              : s.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {selectedScenario && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-[#0D0D14] p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <ImageWithFallback
+                        src={selectedScenario.image}
+                        alt={selectedScenario.title}
+                        className="w-full sm:w-24 h-40 sm:h-28 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-white/10"
+                      />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-[#A855F7]">
+                            {selectedScenario.categoryName}
+                          </span>
+                          {hasAnyCustomization && (
+                            <button
+                              type="button"
+                              onClick={handleRestoreDefaults}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-violet-500 hover:text-violet-800 dark:border-white/15 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:text-white transition-colors"
+                            >
+                              <RotateCcw className="w-3 h-3" aria-hidden="true" />
+                              <span>Restaurar padrão</span>
+                            </button>
+                          )}
+                        </div>
+                        <h3 className="text-sm sm:text-base font-semibold text-slate-950 dark:text-white">
+                          {selectedScenario.title}
+                        </h3>
+                        <p className="text-xs leading-relaxed text-slate-600 dark:text-[#A1A1AA]">
+                          {selectedScenario.description}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <ExpandableTextField
+                    id="free-prompt"
+                    label="Sua descrição principal"
+                    hint="Inclua lugar, roupa, horário do dia e expressão. Quanto mais claro, mais fiel o resultado."
+                    value={freePrompt}
+                    onChange={setFreePrompt}
+                    defaultRows={5}
+                    expandedRows={10}
+                    placeholder="Quero estar em Dubai, encostado em uma Lamborghini preta, usando uma roupa social elegante, durante o pôr do sol, com fotografia profissional realista."
+                  />
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <button
+                      type="button"
+                      disabled={enhancing}
+                      onClick={handleEnhanceDescription}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-50 transition-colors"
+                    >
+                      {enhancing ? (
+                        <ButtonSpinner
+                          size="md"
+                          className="text-violet-700 dark:text-[#8B5CF6]"
+                        />
+                      ) : (
+                        <Wand2
+                          className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span>
+                        {enhancing
+                          ? 'Melhorando...'
+                          : `Melhorar minha descrição (${CREDIT_COSTS.enhance_prompt} crédito)`}
+                      </span>
+                    </button>
+                    <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">
+                      Reescreve com detalhes fotográficos para você aprovar antes de gerar.
+                    </span>
+                  </div>
+
+                  {enhancedDraft !== null && (
+                    <div className="rounded-xl border border-violet-500/50 bg-slate-50 dark:bg-[#08080C] p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-violet-700 dark:text-[#8B5CF6]">
+                          Descrição melhorada (revise antes de aplicar)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFreePrompt(enhancedDraft);
+                            setEnhancedDraft(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-950 hover:text-violet-700 dark:text-white dark:hover:text-[#A855F7]"
+                        >
+                          <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                          Aplicar no campo principal
+                        </button>
+                      </div>
+                      <ExpandableTextField
+                        id="enhanced-draft"
+                        label="Sugestão otimizada"
+                        value={enhancedDraft}
+                        onChange={setEnhancedDraft}
+                        defaultRows={4}
+                        expandedRows={8}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Step 2: Expandable Scene Details */}
+            <section
+              aria-labelledby="step-2-heading"
+              className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 space-y-5 shadow-sm dark:shadow-none"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-violet-100 text-xs font-bold font-mono-num text-violet-800 dark:bg-[#7C3AED]/25 dark:text-[#C4B5FD]">
+                      2
+                    </span>
+                    <h2
+                      id="step-2-heading"
+                      className="font-display text-base font-semibold text-slate-950 dark:text-white"
+                    >
+                      Detalhes da cena
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">
+                    Edite livremente cada parte da fotografia. Clique em <strong className="font-semibold text-slate-800 dark:text-white">Ampliar campo</strong> se precisar de mais espaço para textos longos.
+                  </p>
+                </div>
+
+                {hasAnyCustomization && (
                   <button
                     type="button"
-                    disabled={enhancing}
-                    onClick={handleEnhanceDescription}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-50"
+                    onClick={handleRestoreDefaults}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 hover:underline dark:text-[#A855F7] shrink-0"
                   >
-                    {enhancing ? (
-                      <ButtonSpinner size="md" className="text-violet-700 dark:text-[#8B5CF6]" />
-                    ) : (
-                      <Wand2 className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
-                    )}
-                    <span>
-                      {enhancing
-                        ? 'Melhorando...'
-                        : `Melhorar minha descrição (${CREDIT_COSTS.enhance_prompt} crédito)`}
-                    </span>
+                    <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                    Restaurar textos originais
                   </button>
-                  <span className="text-xs text-slate-700 dark:text-[#A1A1AA]">
-                    Reescreve com detalhes fotográficos para você aprovar antes de gerar.
-                  </span>
-                </div>
-
-                {enhancedDraft !== null && (
-                  <div className="rounded-xl border border-violet-500/50 bg-slate-50 dark:bg-[#08080C] p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-violet-700 dark:text-[#8B5CF6]">
-                        Descrição melhorada (edite ou aprove abaixo)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFreePrompt(enhancedDraft);
-                          setEnhancedDraft(null);
-                        }}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-950 hover:text-violet-700 dark:text-white dark:hover:text-[#8B5CF6]"
-                      >
-                        <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                        Aplicar no campo principal
-                      </button>
-                    </div>
-                    <textarea
-                      rows={4}
-                      value={enhancedDraft}
-                      onChange={(e) => setEnhancedDraft(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-xs text-slate-950 dark:bg-[#17171F] dark:border-white/10 dark:text-white"
-                    />
-                  </div>
                 )}
               </div>
-            )}
 
-            {/* Personalização completa */}
-            <div className="pt-4 border-t border-slate-200 dark:border-white/10 space-y-4">
-              <h2 className="font-display text-sm font-semibold text-slate-950 dark:text-white">
-                Personalização completa
-              </h2>
+              <div className="space-y-4">
+                <ExpandableTextField
+                  id="custom-outfit"
+                  label="Roupa e acessórios"
+                  hint="Descreva peças, cores, tecidos e estilo (ex.: terno grafite sob medida, jaqueta de couro ou vestido leve)."
+                  value={outfit}
+                  onChange={setOutfit}
+                  defaultRows={2}
+                  expandedRows={5}
+                  isCustomized={isOutfitEdited}
+                  placeholder="Ex.: Terno preto elegante com camisa branca aberta no colarinho"
+                />
+
+                <ExpandableTextField
+                  id="custom-env"
+                  label="Ambiente e fundo"
+                  hint="Defina o local, arquitetura, paisagem e elementos visíveis ao redor."
+                  value={environment}
+                  onChange={setEnvironment}
+                  defaultRows={2}
+                  expandedRows={5}
+                  isCustomized={isEnvEdited}
+                  placeholder="Ex.: Terraço panorâmico em Dubai com vista da cidade ao entardecer"
+                />
+
+                <ExpandableTextField
+                  id="custom-pose"
+                  label="Pose e expressão"
+                  hint="Como você quer aparecer na foto (postura, direção do olhar, mãos e expressão facial)."
+                  value={pose}
+                  onChange={setPose}
+                  defaultRows={2}
+                  expandedRows={5}
+                  isCustomized={isPoseEdited}
+                  placeholder="Ex.: Olhando para a câmera com sorriso natural e postura confiante"
+                />
+              </div>
+            </section>
+
+            {/* Step 3: Photography Style & Visual Aspect Ratio */}
+            <section
+              aria-labelledby="step-3-heading"
+              className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 space-y-5 shadow-sm dark:shadow-none"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-violet-100 text-xs font-bold font-mono-num text-violet-800 dark:bg-[#7C3AED]/25 dark:text-[#C4B5FD]">
+                    3
+                  </span>
+                  <h2
+                    id="step-3-heading"
+                    className="font-display text-base font-semibold text-slate-950 dark:text-white"
+                  >
+                    Estética fotográfica e formato
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">
+                  Ajuste o clima de luz, a estética da lente e a proporção ideal para onde vai publicar.
+                </p>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="custom-outfit" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                    Roupa
-                  </label>
-                  <input
-                    id="custom-outfit"
-                    type="text"
-                    value={outfit}
-                    onChange={(e) => setOutfit(e.target.value)}
-                    placeholder="Ex.: Terno preto elegante ou jaqueta de couro"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="custom-env" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                    Ambiente
-                  </label>
-                  <input
-                    id="custom-env"
-                    type="text"
-                    value={environment}
-                    onChange={(e) => setEnvironment(e.target.value)}
-                    placeholder="Ex.: Avenida iluminada em Paris"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="custom-pose" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                    Pose
-                  </label>
-                  <input
-                    id="custom-pose"
-                    type="text"
-                    value={pose}
-                    onChange={(e) => setPose(e.target.value)}
-                    placeholder="Ex.: Olhando para a câmera com sorriso natural"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="custom-lighting" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
+                  <label
+                    htmlFor="custom-lighting"
+                    className="block text-xs font-semibold text-slate-900 dark:text-white"
+                  >
                     Iluminação
                   </label>
                   <select
                     id="custom-lighting"
                     value={lighting}
                     onChange={(e) => setLighting(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 focus:outline-none focus:border-violet-700 dark:bg-[#0D0D14] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
                   >
                     {CUSTOMIZATION_OPTIONS.lighting.map((opt) => (
                       <option key={opt} value={opt}>
@@ -745,14 +1013,17 @@ export function CreatePage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="custom-style" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
+                  <label
+                    htmlFor="custom-style"
+                    className="block text-xs font-semibold text-slate-900 dark:text-white"
+                  >
                     Estilo da foto
                   </label>
                   <select
                     id="custom-style"
                     value={style}
                     onChange={(e) => setStyle(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 focus:outline-none focus:border-violet-700 dark:bg-[#0D0D14] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
                   >
                     {CUSTOMIZATION_OPTIONS.styles.map((opt) => (
                       <option key={opt} value={opt}>
@@ -761,52 +1032,174 @@ export function CreatePage() {
                     ))}
                   </select>
                 </div>
+              </div>
 
-                <div className="space-y-1.5">
-                  <label htmlFor="custom-ratio" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-900 dark:text-white">
                     Proporção / formato
-                  </label>
-                  <select
-                    id="custom-ratio"
-                    value={aspectRatio}
-                    onChange={(e) => setAspectRatio(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                  >
-                    {CUSTOMIZATION_OPTIONS.aspectRatios.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-[#A1A1AA] font-mono-num">
+                    Selecionado: {selectedRatioMeta.label}
+                  </span>
+                </div>
+
+                <div
+                  role="radiogroup"
+                  aria-label="Proporção e formato da imagem"
+                  className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+                >
+                  {CUSTOMIZATION_OPTIONS.aspectRatios.map((opt) => {
+                    const selected = aspectRatio === opt.id;
+                    const ratioUi = ASPECT_RATIO_UI[opt.id] || {
+                      shortName: opt.label,
+                      frameClass: 'w-4 h-4',
+                    };
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setAspectRatio(opt.id)}
+                        className={`min-h-[68px] flex flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-center transition-all ${
+                          selected
+                            ? 'border-violet-600 bg-violet-50 text-violet-950 shadow-sm dark:border-[#8B5CF6] dark:bg-[#7C3AED]/20 dark:text-white'
+                            : 'border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-400 hover:bg-white dark:border-white/12 dark:bg-[#0D0D14] dark:text-[#A1A1AA] dark:hover:border-white/25 dark:hover:text-white'
+                        }`}
+                      >
+                        <span className="flex h-6 items-center justify-center" aria-hidden="true">
+                          <span
+                            className={`rounded-[3px] border-2 ${ratioUi.frameClass} ${
+                              selected
+                                ? 'border-violet-600 bg-violet-200/60 dark:border-[#C4B5FD] dark:bg-[#8B5CF6]/30'
+                                : 'border-slate-400 dark:border-white/35'
+                            }`}
+                          />
+                        </span>
+                        <span className="text-xs font-bold font-mono-num leading-none">
+                          {opt.id}
+                        </span>
+                        <span className="text-[11px] leading-none opacity-90">
+                          {ratioUi.shortName}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
+            </section>
           </div>
 
           {/* Right Confirmation Panel */}
-          <aside className="lg:col-span-5 rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-6 shadow-sm dark:shadow-none">
+          <aside className="lg:col-span-5 lg:sticky lg:top-24 rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 space-y-5 shadow-sm dark:shadow-none">
             <div>
               <h2 className="font-display text-lg font-semibold text-slate-950 dark:text-white">
                 Resumo antes de confirmar
               </h2>
-              <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA]">
-                Você vê o custo exato em créditos antes de iniciar a geração. Se houver falha, o estorno é automático.
+              <p className="mt-1 text-xs text-slate-600 dark:text-[#A1A1AA]">
+                Confira o cenário, o formato e o custo exato em créditos. Se houver falha, o estorno é automático.
               </p>
             </div>
 
-            <dl className="space-y-3 text-sm border-y border-slate-200 dark:border-white/10 py-4">
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-700 dark:text-[#A1A1AA]">Modo</dt>
+            {/* Readiness Indicators */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div
+                className={`rounded-xl border px-3 py-2.5 text-xs ${
+                  hasFaces
+                    ? 'border-emerald-600/35 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/25 dark:text-emerald-200'
+                    : 'border-amber-600/40 bg-amber-50 text-amber-950 dark:border-amber-500/35 dark:bg-amber-950/25 dark:text-amber-200'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-semibold">
+                  {hasFaces ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>Perfil Visual</span>
+                </div>
+                <p className="mt-0.5 text-[11px] opacity-90">
+                  {loadingProfile
+                    ? 'Verificando...'
+                    : hasFaces
+                    ? `${faces.length} ${faces.length === 1 ? 'rosto salvo' : 'rostos salvos'}`
+                    : 'Envie 1 foto'}
+                </p>
+              </div>
+
+              <div
+                className={`rounded-xl border px-3 py-2.5 text-xs ${
+                  hasEnoughCredits
+                    ? 'border-emerald-600/35 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/25 dark:text-emerald-200'
+                    : 'border-amber-600/40 bg-amber-50 text-amber-950 dark:border-amber-500/35 dark:bg-amber-950/25 dark:text-amber-200'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-semibold">
+                  {hasEnoughCredits ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>Créditos</span>
+                </div>
+                <p className="mt-0.5 text-[11px] opacity-90 font-mono-num">
+                  {hasEnoughCredits
+                    ? `${user?.credits ?? 0} disponíveis`
+                    : `Mínimo ${CREDIT_COSTS.generate}`}
+                </p>
+              </div>
+            </div>
+
+            {/* Active Selection Preview */}
+            {mode === 'preset' && selectedScenario ? (
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#0D0D14] p-3">
+                <ImageWithFallback
+                  src={selectedScenario.image}
+                  alt={selectedScenario.title}
+                  className="w-12 h-14 rounded-lg object-cover shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[11px] text-slate-600 dark:text-[#A1A1AA] truncate">
+                    {selectedScenario.categoryName}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-950 dark:text-white truncate">
+                    {selectedScenario.title}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-[#0D0D14] p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-700 dark:text-[#A855F7]">
+                  Criação Livre
+                </p>
+                <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA] line-clamp-2">
+                  {freePrompt.trim() || 'Aguardando sua descrição da cena...'}
+                </p>
+              </div>
+            )}
+
+            <dl className="space-y-2.5 text-sm border-y border-slate-200 dark:border-white/10 py-4">
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-slate-600 dark:text-[#A1A1AA]">Modo</dt>
                 <dd className="text-slate-950 dark:text-white font-medium">
                   {mode === 'preset' ? 'Criação Pronta' : 'Criação Livre'}
                 </dd>
               </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-700 dark:text-[#A1A1AA]">Formato</dt>
-                <dd className="text-slate-950 dark:text-white font-mono-num">{aspectRatio}</dd>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-slate-600 dark:text-[#A1A1AA]">Formato</dt>
+                <dd className="text-slate-950 dark:text-white font-mono-num">
+                  {selectedRatioMeta.label}
+                </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-slate-700 dark:text-[#A1A1AA]">Modelo de IA</dt>
+                <dt className="text-slate-600 dark:text-[#A1A1AA] shrink-0">Iluminação</dt>
+                <dd className="text-slate-950 dark:text-white text-xs text-right truncate max-w-[210px]">
+                  {lighting}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-slate-600 dark:text-[#A1A1AA]">Modelo de IA</dt>
                 <dd className="text-right">
                   <span className="text-slate-950 dark:text-white font-medium">
                     {getPreferredAiModelOption(preferredModel).shortLabel}
@@ -819,21 +1212,21 @@ export function CreatePage() {
                   </Link>
                 </dd>
               </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-700 dark:text-[#A1A1AA]">Custo da geração</dt>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-white/10">
+                <dt className="text-slate-600 dark:text-[#A1A1AA]">Custo da geração</dt>
                 <dd className="text-slate-950 dark:text-white font-semibold font-mono-num">
                   {CREDIT_COSTS.generate} créditos
                 </dd>
               </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-slate-700 dark:text-[#A1A1AA]">Seu saldo atual</dt>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-slate-600 dark:text-[#A1A1AA]">Seu saldo atual</dt>
                 <dd className="text-violet-700 dark:text-[#8B5CF6] font-semibold font-mono-num">
                   {user?.credits ?? 0} créditos
                 </dd>
               </div>
               {falQuota?.active && (
-                <div className="flex items-center justify-between">
-                  <dt className="text-slate-700 dark:text-[#A1A1AA]">Proteção gratuita fal.ai</dt>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-slate-600 dark:text-[#A1A1AA]">Proteção gratuita fal.ai</dt>
                   <dd
                     data-testid="create-fal-quota"
                     className={`font-semibold font-mono-num ${
@@ -882,9 +1275,15 @@ export function CreatePage() {
               </span>
             </button>
 
-            <p className="text-[11px] text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
-              Toda imagem gerada recebe marcação "Foto gerada por IA" e marca d’água invisível SynthID quando suportado. Uso permitido apenas com seu próprio rosto.
-            </p>
+            <div className="flex items-start gap-2 text-[11px] text-slate-600 dark:text-[#A1A1AA] leading-relaxed">
+              <ShieldCheck
+                className="w-4 h-4 shrink-0 text-slate-500 dark:text-[#A1A1AA] mt-0.5"
+                aria-hidden="true"
+              />
+              <p>
+                Toda imagem gerada recebe marcação &quot;Foto gerada por IA&quot; e marca d’água invisível SynthID quando suportado. Uso permitido apenas com seu próprio rosto.
+              </p>
+            </div>
           </aside>
         </div>
       )}
