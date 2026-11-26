@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import express from 'express';
 import Stripe from 'stripe';
-import type { Express, Request, Response } from 'express';
+import type { Express, NextFunction, Request, Response } from 'express';
 import {
   CREDIT_COSTS,
   INITIAL_SIGNUP_CREDITS,
@@ -33,14 +32,17 @@ import {
 } from '../src/shared/providerQuota.ts';
 import {
   clearSessionCookie,
-  hashPassword,
+  createAuthUser,
+  createSessionForUser,
   requireAdmin,
   requireAuth,
+  resolveSession,
   sanitizeUser,
   setSessionCookie,
-  signSessionToken,
-  verifyPassword,
-  verifySessionToken,
+  signInWithPassword,
+  signOutSession,
+  updateAuthUserPassword,
+  validateAccessToken,
   extractBearerToken,
   type AuthenticatedRequest,
 } from './auth.ts';
@@ -48,9 +50,10 @@ import {
   GENERATED_DIR,
   UPLOADS_DIR,
   deleteImageFile,
+  downloadImageFile,
+  isDbReady,
   loadDb,
   readImageAsBase64,
-  resolveSafeFile,
   saveDb,
   saveImageFile,
 } from './store.ts';
@@ -65,6 +68,26 @@ import {
 } from './providers/imageProvider.ts';
 
 let falInFlightCount = 0;
+
+// Express 4 não encaminha erros de handlers async para o error handler:
+// uma rejeição (ex.: Supabase fora do ar no meio de um saveDb) deixaria a
+// requisição pendurada para sempre. Este embrulho garante que todo handler
+// registrado aqui devolva o erro como JSON 500 em vez de travar.
+function wrapAsyncRouteHandlers(app: Express): void {
+  (['get', 'post', 'put', 'patch', 'delete'] as const).forEach((method) => {
+    const original = (app as any)[method].bind(app);
+    (app as any)[method] = (path: string, ...handlers: any[]) => {
+      const wrapped = handlers.map((h: any) =>
+        typeof h === 'function'
+          ? (req: Request, res: Response, next: NextFunction) => {
+              Promise.resolve(h(req, res, next)).catch(next);
+            }
+          : h
+      );
+      return original(path, ...wrapped);
+    };
+  });
+}
 
 function createFalRequestGate(): FalRequestGate {
   let acquired = false;
@@ -158,6 +181,23 @@ function rejectIfMaintenance(
 }
 
 export function registerApiRoutes(app: Express): void {
+  wrapAsyncRouteHandlers(app);
+
+  // Sem banco carregado, nenhuma rota /api funciona (exceto /api/health,
+  // que não precisa do banco). Sem este guarda, um loadDb() dentro de um
+  // handler async deixaria a requisição pendurada.
+  app.use('/api', (req, res, next) => {
+    if (req.path === '/health') return next();
+    if (!isDbReady()) {
+      res.status(503).json({
+        error:
+          'Banco de dados indisponível: o Supabase ainda não foi carregado ou não está configurado. Verifique SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.',
+      });
+      return;
+    }
+    next();
+  });
+
   // Stripe Webhook MUST receive raw body before express.json()
   app.post(
     '/api/stripe/webhook',
@@ -346,14 +386,22 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
+    // A senha vive somente no Supabase Auth. O perfil interno é criado com
+    // o authUserId retornado; contas antigas do JSON não têm authUserId.
+    const authResult = await createAuthUser(email, password, name);
+    if (!authResult.ok || !authResult.authUserId) {
+      res.status(authResult.status).json({ error: authResult.error });
+      return;
+    }
+
     const verificationCode = String(crypto.randomInt(100000, 999999));
     const userId = crypto.randomUUID();
 
     const newUser = {
       id: userId,
+      authUserId: authResult.authUserId,
       name,
       email,
-      passwordHash: hashPassword(password),
       role: 'user' as const,
       emailVerified: false,
       verificationCode,
@@ -406,9 +454,17 @@ export function registerApiRoutes(app: Express): void {
     user.verificationCode = undefined;
     await saveDb(db);
 
-    const token = signSessionToken(user);
-    setSessionCookie(res, token);
-    res.json({ token, user: sanitizeUser(user) });
+    // O frontend espera receber o token aqui, mas não temos a senha neste
+    // passo — a sessão é criada via link mágico da Admin API (sem e-mail).
+    const sessionResult = await createSessionForUser(email);
+    if (!sessionResult.ok) {
+      res.status(400).json({
+        error: 'E-mail confirmado, mas não foi possível iniciar a sessão. Entre com sua senha.',
+      });
+      return;
+    }
+    setSessionCookie(res, sessionResult.session.accessToken, sessionResult.session.refreshToken);
+    res.json({ token: sessionResult.session.accessToken, user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/login', async (req, res) => {
@@ -417,7 +473,14 @@ export function registerApiRoutes(app: Express): void {
 
     const db = loadDb();
     const user = db.users.find((u) => u.email === email);
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    // Contas importadas do JSON antigo não têm authUserId: não dá para entrar
+    // com a senha antiga — é preciso criar conta nova ou redefinir a senha.
+    if (!user || !user.authUserId) {
+      res.status(401).json({ error: 'E-mail ou senha incorretos.' });
+      return;
+    }
+    const signIn = await signInWithPassword(email, password);
+    if (!signIn.ok) {
       res.status(401).json({ error: 'E-mail ou senha incorretos.' });
       return;
     }
@@ -440,9 +503,8 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    const token = signSessionToken(user);
-    setSessionCookie(res, token);
-    res.json({ token, user: sanitizeUser(user) });
+    setSessionCookie(res, signIn.session.accessToken, signIn.session.refreshToken);
+    res.json({ token: signIn.session.accessToken, user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/forgot-password', async (req, res) => {
@@ -495,15 +557,31 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    user.passwordHash = hashPassword(newPassword);
+    // Contas importadas do JSON antigo não têm login no Supabase Auth: a senha
+    // antiga (scrypt) não migrou. Elas precisam criar conta nova.
+    if (!user.authUserId) {
+      res.status(400).json({
+        error: 'Esta conta foi criada antes da migração e não tem login no novo sistema. Crie uma conta nova com este e-mail.',
+      });
+      return;
+    }
+    const updated = await updateAuthUserPassword(user.authUserId, newPassword);
+    if (!updated.ok) {
+      res.status(updated.status).json({ error: updated.error });
+      return;
+    }
     user.resetCode = undefined;
     user.resetExpiresAt = undefined;
     user.emailVerified = true;
     await saveDb(db);
 
-    const token = signSessionToken(user);
-    setSessionCookie(res, token);
-    res.json({ ok: true, token, user: sanitizeUser(user) });
+    const signIn = await signInWithPassword(email, newPassword);
+    if (!signIn.ok) {
+      res.json({ ok: true, message: 'Senha redefinida. Entre com sua nova senha.' });
+      return;
+    }
+    setSessionCookie(res, signIn.session.accessToken, signIn.session.refreshToken);
+    res.json({ ok: true, token: signIn.session.accessToken, user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/claim-admin', async (req, res) => {
@@ -532,15 +610,45 @@ export function registerApiRoutes(app: Express): void {
 
     let adminUser = db.users.find((u) => u.email === email);
     if (adminUser) {
+      // Perfil já existe (ex.: conta de teste importada do JSON antigo).
+      // Vincula/cria o login no Supabase Auth para este e-mail.
+      if (adminUser.authUserId) {
+        const updated = await updateAuthUserPassword(adminUser.authUserId, password);
+        if (!updated.ok) {
+          res.status(updated.status).json({ error: updated.error });
+          return;
+        }
+      } else {
+        const created = await createAuthUser(email, password, adminUser.name || name);
+        if (created.ok && created.authUserId) {
+          adminUser.authUserId = created.authUserId;
+        } else if (created.status === 409) {
+          // O login já existia no Supabase Auth (ex.: cadastro interrompido):
+          // valida a senha e adota o authUserId da sessão.
+          const signIn = await signInWithPassword(email, password);
+          if (!signIn.ok) {
+            res.status(409).json({ error: 'Já existe um login com este e-mail no Supabase Auth.' });
+            return;
+          }
+          adminUser.authUserId = signIn.session.authUserId;
+        } else {
+          res.status(created.status).json({ error: created.error });
+          return;
+        }
+      }
       adminUser.role = 'admin';
       adminUser.emailVerified = true;
-      adminUser.passwordHash = hashPassword(password);
     } else {
+      const created = await createAuthUser(email, password, name);
+      if (!created.ok || !created.authUserId) {
+        res.status(created.status).json({ error: created.error });
+        return;
+      }
       adminUser = {
         id: crypto.randomUUID(),
+        authUserId: created.authUserId,
         name: name || 'Administrador',
         email,
-        passwordHash: hashPassword(password),
         role: 'admin',
         emailVerified: true,
         credits: 600,
@@ -552,42 +660,46 @@ export function registerApiRoutes(app: Express): void {
     }
 
     await saveDb(db);
-    const token = signSessionToken(adminUser);
-    setSessionCookie(res, token);
-    res.json({ token, user: sanitizeUser(adminUser) });
+    const signIn = await signInWithPassword(email, password);
+    if (!signIn.ok) {
+      res.status(401).json({ error: 'Administrador configurado, mas não foi possível entrar. Tente o login.' });
+      return;
+    }
+    setSessionCookie(res, signIn.session.accessToken, signIn.session.refreshToken);
+    res.json({ token: signIn.session.accessToken, user: sanitizeUser(adminUser) });
   });
 
-  app.post('/api/auth/logout', (_req, res) => {
+  app.post('/api/auth/logout', async (req, res) => {
+    const { token } = extractBearerToken(req);
+    if (token) await signOutSession(token);
     clearSessionCookie(res);
     res.json({ ok: true });
   });
 
-  app.get('/api/auth/session', (req, res) => {
-    const { token } = extractBearerToken(req);
-    const payload = token ? verifySessionToken(token) : null;
-    if (!payload) {
+  app.get('/api/auth/session', async (req, res) => {
+    const session = await resolveSession(req, res);
+    if (!session) {
       res.json({ authenticated: false, user: null });
       return;
     }
-    const db = loadDb();
-    const user = db.users.find((u) => u.id === payload.uid);
-    if (!user) {
-      res.json({ authenticated: false, user: null });
-      return;
-    }
-    const freshToken = signSessionToken(user);
-    res.json({ authenticated: true, user: sanitizeUser(user), token: freshToken });
+    res.json({ authenticated: true, user: sanitizeUser(session.user), token: session.accessToken });
   });
 
   app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res) => {
-    const token = signSessionToken(req.authUser!);
-    res.json({ user: sanitizeUser(req.authUser!), token });
+    res.json({ user: sanitizeUser(req.authUser!), token: req.authToken });
   });
 
   // Protected private media routes (never public by default!)
-  app.get('/media/faces/:filename', (req, res) => {
+  // Os arquivos vivem nos buckets privados do Supabase Storage e só saem
+  // daqui depois da checagem de dono/admin — nunca por URL pública.
+  app.get('/media/faces/:filename', async (req, res) => {
     const { token } = extractBearerToken(req);
-    const payload = token ? verifySessionToken(token) : null;
+    let payload = token ? await validateAccessToken(token) : null;
+    if (!payload) {
+      // Token expirado: tenta renovar com o refresh_token do cookie.
+      const session = await resolveSession(req, res);
+      if (session) payload = { uid: session.user.id, role: session.user.role };
+    }
     if (!payload) {
       res.status(401).send('Não autorizado');
       return;
@@ -598,17 +710,22 @@ export function registerApiRoutes(app: Express): void {
       res.status(403).send('Acesso negado');
       return;
     }
-    const safePath = resolveSafeFile(UPLOADS_DIR, req.params.filename);
-    if (!safePath || !fs.existsSync(safePath)) {
+    const buffer = await downloadImageFile(UPLOADS_DIR, req.params.filename);
+    if (!buffer) {
       res.status(404).send('Arquivo não encontrado');
       return;
     }
-    res.type(face.mimeType).sendFile(safePath);
+    res.type(face.mimeType).send(buffer);
   });
 
-  app.get('/media/generated/:filename', (req, res) => {
+  app.get('/media/generated/:filename', async (req, res) => {
     const { token } = extractBearerToken(req);
-    const payload = token ? verifySessionToken(token) : null;
+    let payload = token ? await validateAccessToken(token) : null;
+    if (!payload) {
+      // Token expirado: tenta renovar com o refresh_token do cookie.
+      const session = await resolveSession(req, res);
+      if (session) payload = { uid: session.user.id, role: session.user.role };
+    }
     if (!payload) {
       res.status(401).send('Não autorizado');
       return;
@@ -621,12 +738,12 @@ export function registerApiRoutes(app: Express): void {
       res.status(403).send('Acesso negado');
       return;
     }
-    const safePath = resolveSafeFile(GENERATED_DIR, req.params.filename);
-    if (!safePath || !fs.existsSync(safePath)) {
+    const buffer = await downloadImageFile(GENERATED_DIR, req.params.filename);
+    if (!buffer) {
       res.status(404).send('Arquivo não encontrado');
       return;
     }
-    res.type(gen.mimeType).sendFile(safePath);
+    res.type(gen.mimeType).send(buffer);
   });
 
   // Visual Profile & Face References
@@ -914,13 +1031,14 @@ export function registerApiRoutes(app: Express): void {
       visualProfile: db.visualProfiles[user.id] ?? null,
     });
 
-    const refParts = userFaces
-      .slice(0, 3)
-      .map((f) => {
-        const b64 = readImageAsBase64(UPLOADS_DIR, f.filename);
-        return b64 ? { base64: b64, mimeType: f.mimeType } : null;
-      })
-      .filter((x): x is { base64: string; mimeType: string } => Boolean(x));
+    const refParts = (
+      await Promise.all(
+        userFaces.slice(0, 3).map(async (f) => {
+          const b64 = await readImageAsBase64(UPLOADS_DIR, f.filename);
+          return b64 ? { base64: b64, mimeType: f.mimeType } : null;
+        })
+      )
+    ).filter((x): x is { base64: string; mimeType: string } => Boolean(x));
 
     const preferredModel = normalizePreferredAiModel(
       req.body?.preferredModel ?? db.visualProfiles[user.id]?.preferredModel ?? user.preferredModel
@@ -1084,7 +1202,7 @@ export function registerApiRoutes(app: Express): void {
         ? generation.versions[generation.versions.length - 1].mimeType
         : generation.mimeType;
 
-    const sourceB64 = readImageAsBase64(GENERATED_DIR, latestFilename);
+    const sourceB64 = await readImageAsBase64(GENERATED_DIR, latestFilename);
     if (!sourceB64) {
       user.credits = refundCredits(user.credits, reservation.reservedAmount);
       await saveDb(db);
@@ -1092,14 +1210,17 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    const faceRefs = db.faceReferences
-      .filter((f) => f.userId === user.id)
-      .slice(0, 2)
-      .map((f) => {
-        const b64 = readImageAsBase64(UPLOADS_DIR, f.filename);
-        return b64 ? { base64: b64, mimeType: f.mimeType } : null;
-      })
-      .filter((x): x is { base64: string; mimeType: string } => Boolean(x));
+    const faceRefs = (
+      await Promise.all(
+        db.faceReferences
+          .filter((f) => f.userId === user.id)
+          .slice(0, 2)
+          .map(async (f) => {
+            const b64 = await readImageAsBase64(UPLOADS_DIR, f.filename);
+            return b64 ? { base64: b64, mimeType: f.mimeType } : null;
+          })
+      )
+    ).filter((x): x is { base64: string; mimeType: string } => Boolean(x));
 
     const preferredModel = normalizePreferredAiModel(
       db.visualProfiles[user.id]?.preferredModel ?? user.preferredModel
@@ -1802,5 +1923,13 @@ export function registerApiRoutes(app: Express): void {
     db.notices = db.notices.filter((n) => n.id !== req.params.id);
     await saveDb(db);
     res.json({ ok: true });
+  });
+
+  // Erros inesperados (ex.: Supabase fora do ar ou sem chaves) viram JSON,
+  // sem vazar stack trace em HTML para o navegador.
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('[api] Erro inesperado:', err instanceof Error ? err.message : err);
+    if (res.headersSent) return;
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Erro interno.' });
   });
 }

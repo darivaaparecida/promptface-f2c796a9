@@ -6,9 +6,11 @@ import type { FalQuotaState } from '../src/shared/providerQuota.ts';
 
 export interface UserRecord {
   id: string;
+  // ID do usuário no Supabase Auth (auth.users.id). undefined em contas
+  // importadas do JSON antigo, que ainda não têm login no Supabase Auth.
+  authUserId?: string;
   name: string;
   email: string;
-  passwordHash: string;
   role: 'user' | 'admin';
   emailVerified: boolean;
   verificationCode?: string;
