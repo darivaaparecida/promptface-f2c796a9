@@ -156,6 +156,7 @@ interface LedgerItem {
 interface PaymentItem {
   id: string;
   planId: string;
+  billingInterval?: 'monthly' | 'quarterly' | 'yearly';
   amountBrl: number;
   status: string;
   method: string;
@@ -175,6 +176,7 @@ export function MySpacePage() {
   const [ledger, setLedger] = useState<LedgerItem[]>([]);
   const [subscription, setSubscription] = useState<{
     planId: string;
+    billingInterval?: 'monthly' | 'quarterly' | 'yearly';
     subscriptionStatus: string;
     payments: PaymentItem[];
   } | null>(null);
@@ -2562,7 +2564,15 @@ export function MySpacePage() {
                   <h2 className="font-display text-xl font-bold text-slate-950 dark:text-white uppercase">
                     {subscription?.planId === 'free_trial'
                       ? 'Créditos iniciais de boas-vindas'
-                      : subscription?.planId}
+                      : `${subscription?.planId ?? ''} ${
+                          subscription?.billingInterval === 'quarterly'
+                            ? '· Trimestral'
+                            : subscription?.billingInterval === 'yearly'
+                            ? '· Anual'
+                            : subscription?.planId && subscription.planId !== 'free_trial'
+                            ? '· Mensal'
+                            : ''
+                        }`}
                   </h2>
                   <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA]">
                     Status: {subscription?.subscriptionStatus === 'active' ? 'Ativa' : 'Sem assinatura recorrente ativa'}

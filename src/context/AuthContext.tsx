@@ -9,6 +9,8 @@ import {
   type FalQuotaSummary,
 } from '../shared/providerQuota';
 
+import type { BillingInterval, PlanId } from '../shared/catalog';
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -16,7 +18,8 @@ export interface AuthUser {
   role: 'user' | 'admin';
   emailVerified: boolean;
   credits: number;
-  planId: 'free_trial' | 'pro' | 'premium';
+  planId: PlanId;
+  billingInterval?: BillingInterval;
   subscriptionStatus: 'inactive' | 'active' | 'canceled' | 'past_due';
   currentPeriodEnd?: string;
   preferredModel?: PreferredAiModelId;

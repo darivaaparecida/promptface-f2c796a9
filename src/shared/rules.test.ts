@@ -22,9 +22,12 @@ test('catalog has exactly 14 categories and 84 active scenarios (6 per category)
 });
 
 test('plans math is consistent and never advertises unlimited', () => {
+  const essencial = INITIAL_PLANS.find((p) => p.id === 'essencial');
   const pro = INITIAL_PLANS.find((p) => p.id === 'pro');
   const premium = INITIAL_PLANS.find((p) => p.id === 'premium');
-  assert.ok(pro && premium);
+  assert.ok(essencial && pro && premium);
+  assert.equal(essencial.priceBrl, 24.9);
+  assert.equal(essencial.creditsMonthly / CREDIT_COSTS.generate, essencial.maxPhotosMonthly);
   assert.equal(pro.priceBrl, 49.9);
   assert.equal(pro.creditsMonthly / CREDIT_COSTS.generate, pro.maxPhotosMonthly);
   assert.equal(premium.priceBrl, 99.9);

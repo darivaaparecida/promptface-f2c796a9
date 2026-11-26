@@ -70,7 +70,7 @@ export function getPlanDisplayInfo(planId: string | undefined): {
   label: string;
   monthlyQuotaCredits: number;
 } {
-  if (planId === 'pro' || planId === 'premium') {
+  if (planId === 'essencial' || planId === 'pro' || planId === 'premium') {
     const plan = INITIAL_PLANS.find((p) => p.id === planId);
     if (plan) {
       return {

@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import express from 'express';
 import Stripe from 'stripe';
-import type { Express, NextFunction, Request, Response } from 'express';
+import type { Express, Request, Response } from 'express';
 import {
   CREDIT_COSTS,
   INITIAL_SIGNUP_CREDITS,
@@ -32,17 +33,14 @@ import {
 } from '../src/shared/providerQuota.ts';
 import {
   clearSessionCookie,
-  createAuthUser,
-  createSessionForUser,
+  hashPassword,
   requireAdmin,
   requireAuth,
-  resolveSession,
   sanitizeUser,
   setSessionCookie,
-  signInWithPassword,
-  signOutSession,
-  updateAuthUserPassword,
-  validateAccessToken,
+  signSessionToken,
+  verifyPassword,
+  verifySessionToken,
   extractBearerToken,
   type AuthenticatedRequest,
 } from './auth.ts';
@@ -50,10 +48,9 @@ import {
   GENERATED_DIR,
   UPLOADS_DIR,
   deleteImageFile,
-  downloadImageFile,
-  isDbReady,
   loadDb,
   readImageAsBase64,
+  resolveSafeFile,
   saveDb,
   saveImageFile,
 } from './store.ts';
@@ -67,26 +64,81 @@ import {
   type FalRequestGate,
 } from './providers/imageProvider.ts';
 
+import type { BillingInterval, PaidPlanId } from '../src/shared/catalog.ts';
+import { getPlanCyclePricing } from '../src/shared/plansCalculator.ts';
+
 let falInFlightCount = 0;
 
-// Express 4 não encaminha erros de handlers async para o error handler:
-// uma rejeição (ex.: Supabase fora do ar no meio de um saveDb) deixaria a
-// requisição pendurada para sempre. Este embrulho garante que todo handler
-// registrado aqui devolva o erro como JSON 500 em vez de travar.
-function wrapAsyncRouteHandlers(app: Express): void {
-  (['get', 'post', 'put', 'patch', 'delete'] as const).forEach((method) => {
-    const original = (app as any)[method].bind(app);
-    (app as any)[method] = (path: string, ...handlers: any[]) => {
-      const wrapped = handlers.map((h: any) =>
-        typeof h === 'function'
-          ? (req: Request, res: Response, next: NextFunction) => {
-              Promise.resolve(h(req, res, next)).catch(next);
-            }
-          : h
-      );
-      return original(path, ...wrapped);
-    };
+function normalizePaidPlanId(value: unknown): PaidPlanId {
+  if (value === 'essencial' || value === 'premium') return value;
+  return 'pro';
+}
+
+function normalizeBillingInterval(value: unknown): BillingInterval {
+  if (value === 'quarterly' || value === 'yearly') return value;
+  return 'monthly';
+}
+
+function getStripePriceId(planId: PaidPlanId, interval: BillingInterval): string | null {
+  const upperPlan = planId.toUpperCase();
+  const upperInterval = interval.toUpperCase();
+  const exact = process.env[`STRIPE_PRICE_${upperPlan}_${upperInterval}`]?.trim();
+  if (exact) return exact;
+  if (interval === 'monthly') {
+    const legacy = process.env[`STRIPE_PRICE_${upperPlan}`]?.trim();
+    if (legacy) return legacy;
+  }
+  return null;
+}
+
+function hasAnyStripePriceConfigured(): boolean {
+  const plans: PaidPlanId[] = ['essencial', 'pro', 'premium'];
+  const intervals: BillingInterval[] = ['monthly', 'quarterly', 'yearly'];
+  return plans.some((p) => intervals.some((i) => Boolean(getStripePriceId(p, i))));
+}
+
+function addDaysIso(baseDate: Date, days: number): string {
+  const d = new Date(baseDate.getTime());
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
+async function syncPeriodicMonthlyCredits(
+  db: ReturnType<typeof loadDb>,
+  userId: string
+): Promise<void> {
+  const user = db.users.find((u) => u.id === userId);
+  if (
+    !user ||
+    user.subscriptionStatus !== 'active' ||
+    user.planId === 'free_trial' ||
+    !user.nextMonthlyCreditGrantAt
+  ) {
+    return;
+  }
+  const interval = normalizeBillingInterval(user.billingInterval);
+  if (interval === 'monthly') return;
+
+  const now = new Date();
+  const nextGrant = new Date(user.nextMonthlyCreditGrantAt);
+  if (Number.isNaN(nextGrant.getTime()) || now < nextGrant) return;
+
+  const plan = db.plans.find((p) => p.id === user.planId);
+  if (!plan) return;
+
+  user.credits = plan.creditsMonthly;
+  user.nextMonthlyCreditGrantAt = addDaysIso(now, 30);
+  db.creditLedger.unshift({
+    id: crypto.randomUUID(),
+    userId: user.id,
+    type: 'subscription_grant',
+    operation: `monthly_drop_${plan.id}_${interval}`,
+    amount: plan.creditsMonthly,
+    balanceAfter: user.credits,
+    description: `Liberação mensal do plano ${plan.name} (${interval === 'quarterly' ? 'Trimestral' : 'Anual'})`,
+    createdAt: now.toISOString(),
   });
+  await saveDb(db);
 }
 
 function createFalRequestGate(): FalRequestGate {
@@ -133,11 +185,7 @@ function getStripeClient(): Stripe | null {
 }
 
 function isStripeConfigured(): boolean {
-  return Boolean(
-    process.env.STRIPE_SECRET_KEY?.trim() &&
-      process.env.STRIPE_PRICE_PRO?.trim() &&
-      process.env.STRIPE_PRICE_PREMIUM?.trim()
-  );
+  return Boolean(process.env.STRIPE_SECRET_KEY?.trim() && hasAnyStripePriceConfigured());
 }
 
 async function sendTransactionalEmail(to: string, subject: string, html: string): Promise<boolean> {
@@ -181,23 +229,6 @@ function rejectIfMaintenance(
 }
 
 export function registerApiRoutes(app: Express): void {
-  wrapAsyncRouteHandlers(app);
-
-  // Sem banco carregado, nenhuma rota /api funciona (exceto /api/health,
-  // que não precisa do banco). Sem este guarda, um loadDb() dentro de um
-  // handler async deixaria a requisição pendurada.
-  app.use('/api', (req, res, next) => {
-    if (req.path === '/health') return next();
-    if (!isDbReady()) {
-      res.status(503).json({
-        error:
-          'Banco de dados indisponível: o Supabase ainda não foi carregado ou não está configurado. Verifique SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.',
-      });
-      return;
-    }
-    next();
-  });
-
   // Stripe Webhook MUST receive raw body before express.json()
   app.post(
     '/api/stripe/webhook',
@@ -229,26 +260,36 @@ export function registerApiRoutes(app: Express): void {
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
-        const planId = session.metadata?.planId as 'pro' | 'premium' | undefined;
+        const planId = normalizePaidPlanId(session.metadata?.planId);
+        const billingInterval = normalizeBillingInterval(session.metadata?.billingInterval);
         const user = db.users.find((u) => u.id === userId);
         const plan = db.plans.find((p) => p.id === planId);
 
         if (user && plan) {
+          const cyclePricing = getPlanCyclePricing(plan, billingInterval);
+          const totalCredits = plan.creditsMonthly + cyclePricing.bonusCreditsFirstMonth;
+
           user.planId = plan.id;
+          user.billingInterval = billingInterval;
           user.subscriptionStatus = 'active';
           user.stripeCustomerId = typeof session.customer === 'string' ? session.customer : undefined;
           user.stripeSubscriptionId =
             typeof session.subscription === 'string' ? session.subscription : undefined;
-          user.credits = plan.creditsMonthly;
+          user.credits = totalCredits;
+          user.nextMonthlyCreditGrantAt =
+            billingInterval === 'monthly' ? undefined : addDaysIso(new Date(), 30);
 
           db.creditLedger.unshift({
             id: crypto.randomUUID(),
             userId: user.id,
             type: 'subscription_grant',
-            operation: `plan_${plan.id}`,
-            amount: plan.creditsMonthly,
+            operation: `plan_${plan.id}_${billingInterval}`,
+            amount: totalCredits,
             balanceAfter: user.credits,
-            description: `Ativação do plano ${plan.name} (${plan.creditsMonthly} créditos mensais)`,
+            description:
+              cyclePricing.bonusCreditsFirstMonth > 0
+                ? `Ativação do plano ${plan.name} ${cyclePricing.intervalLabel} (${plan.creditsMonthly} + ${cyclePricing.bonusCreditsFirstMonth} bônus)`
+                : `Ativação do plano ${plan.name} (${plan.creditsMonthly} créditos mensais)`,
             createdAt: new Date().toISOString(),
           });
 
@@ -256,7 +297,8 @@ export function registerApiRoutes(app: Express): void {
             id: crypto.randomUUID(),
             userId: user.id,
             planId: plan.id,
-            amountBrl: plan.priceBrl,
+            billingInterval,
+            amountBrl: cyclePricing.totalPriceBrl,
             status: 'paid',
             stripeSessionId: session.id,
             method: session.payment_method_types?.[0] ?? 'card',
@@ -272,17 +314,19 @@ export function registerApiRoutes(app: Express): void {
         if (user && user.planId !== 'free_trial') {
           const plan = db.plans.find((p) => p.id === user.planId);
           if (plan) {
+            const billingInterval = normalizeBillingInterval(user.billingInterval);
             user.subscriptionStatus = 'active';
-            // Monthly credits reset cleanly (unused credits do not roll over)
             user.credits = plan.creditsMonthly;
+            user.nextMonthlyCreditGrantAt =
+              billingInterval === 'monthly' ? undefined : addDaysIso(new Date(), 30);
             db.creditLedger.unshift({
               id: crypto.randomUUID(),
               userId: user.id,
               type: 'subscription_grant',
-              operation: `renewal_${plan.id}`,
+              operation: `renewal_${plan.id}_${billingInterval}`,
               amount: plan.creditsMonthly,
               balanceAfter: user.credits,
-              description: `Renovação mensal do plano ${plan.name}`,
+              description: `Renovação do plano ${plan.name}`,
               createdAt: new Date().toISOString(),
             });
             await saveDb(db);
@@ -293,6 +337,7 @@ export function registerApiRoutes(app: Express): void {
         const user = db.users.find((u) => u.stripeSubscriptionId === sub.id);
         if (user) {
           user.subscriptionStatus = 'canceled';
+          user.nextMonthlyCreditGrantAt = undefined;
           await saveDb(db);
         }
       }
@@ -386,22 +431,14 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    // A senha vive somente no Supabase Auth. O perfil interno é criado com
-    // o authUserId retornado; contas antigas do JSON não têm authUserId.
-    const authResult = await createAuthUser(email, password, name);
-    if (!authResult.ok || !authResult.authUserId) {
-      res.status(authResult.status).json({ error: authResult.error });
-      return;
-    }
-
     const verificationCode = String(crypto.randomInt(100000, 999999));
     const userId = crypto.randomUUID();
 
     const newUser = {
       id: userId,
-      authUserId: authResult.authUserId,
       name,
       email,
+      passwordHash: hashPassword(password),
       role: 'user' as const,
       emailVerified: false,
       verificationCode,
@@ -454,17 +491,9 @@ export function registerApiRoutes(app: Express): void {
     user.verificationCode = undefined;
     await saveDb(db);
 
-    // O frontend espera receber o token aqui, mas não temos a senha neste
-    // passo — a sessão é criada via link mágico da Admin API (sem e-mail).
-    const sessionResult = await createSessionForUser(email);
-    if (!sessionResult.ok) {
-      res.status(400).json({
-        error: 'E-mail confirmado, mas não foi possível iniciar a sessão. Entre com sua senha.',
-      });
-      return;
-    }
-    setSessionCookie(res, sessionResult.session.accessToken, sessionResult.session.refreshToken);
-    res.json({ token: sessionResult.session.accessToken, user: sanitizeUser(user) });
+    const token = signSessionToken(user);
+    setSessionCookie(res, token);
+    res.json({ token, user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/login', async (req, res) => {
@@ -473,14 +502,7 @@ export function registerApiRoutes(app: Express): void {
 
     const db = loadDb();
     const user = db.users.find((u) => u.email === email);
-    // Contas importadas do JSON antigo não têm authUserId: não dá para entrar
-    // com a senha antiga — é preciso criar conta nova ou redefinir a senha.
-    if (!user || !user.authUserId) {
-      res.status(401).json({ error: 'E-mail ou senha incorretos.' });
-      return;
-    }
-    const signIn = await signInWithPassword(email, password);
-    if (!signIn.ok) {
+    if (!user || !verifyPassword(password, user.passwordHash)) {
       res.status(401).json({ error: 'E-mail ou senha incorretos.' });
       return;
     }
@@ -503,8 +525,9 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    setSessionCookie(res, signIn.session.accessToken, signIn.session.refreshToken);
-    res.json({ token: signIn.session.accessToken, user: sanitizeUser(user) });
+    const token = signSessionToken(user);
+    setSessionCookie(res, token);
+    res.json({ token, user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/forgot-password', async (req, res) => {
@@ -557,31 +580,15 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    // Contas importadas do JSON antigo não têm login no Supabase Auth: a senha
-    // antiga (scrypt) não migrou. Elas precisam criar conta nova.
-    if (!user.authUserId) {
-      res.status(400).json({
-        error: 'Esta conta foi criada antes da migração e não tem login no novo sistema. Crie uma conta nova com este e-mail.',
-      });
-      return;
-    }
-    const updated = await updateAuthUserPassword(user.authUserId, newPassword);
-    if (!updated.ok) {
-      res.status(updated.status).json({ error: updated.error });
-      return;
-    }
+    user.passwordHash = hashPassword(newPassword);
     user.resetCode = undefined;
     user.resetExpiresAt = undefined;
     user.emailVerified = true;
     await saveDb(db);
 
-    const signIn = await signInWithPassword(email, newPassword);
-    if (!signIn.ok) {
-      res.json({ ok: true, message: 'Senha redefinida. Entre com sua nova senha.' });
-      return;
-    }
-    setSessionCookie(res, signIn.session.accessToken, signIn.session.refreshToken);
-    res.json({ ok: true, token: signIn.session.accessToken, user: sanitizeUser(user) });
+    const token = signSessionToken(user);
+    setSessionCookie(res, token);
+    res.json({ ok: true, token, user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/claim-admin', async (req, res) => {
@@ -610,45 +617,15 @@ export function registerApiRoutes(app: Express): void {
 
     let adminUser = db.users.find((u) => u.email === email);
     if (adminUser) {
-      // Perfil já existe (ex.: conta de teste importada do JSON antigo).
-      // Vincula/cria o login no Supabase Auth para este e-mail.
-      if (adminUser.authUserId) {
-        const updated = await updateAuthUserPassword(adminUser.authUserId, password);
-        if (!updated.ok) {
-          res.status(updated.status).json({ error: updated.error });
-          return;
-        }
-      } else {
-        const created = await createAuthUser(email, password, adminUser.name || name);
-        if (created.ok && created.authUserId) {
-          adminUser.authUserId = created.authUserId;
-        } else if (created.status === 409) {
-          // O login já existia no Supabase Auth (ex.: cadastro interrompido):
-          // valida a senha e adota o authUserId da sessão.
-          const signIn = await signInWithPassword(email, password);
-          if (!signIn.ok) {
-            res.status(409).json({ error: 'Já existe um login com este e-mail no Supabase Auth.' });
-            return;
-          }
-          adminUser.authUserId = signIn.session.authUserId;
-        } else {
-          res.status(created.status).json({ error: created.error });
-          return;
-        }
-      }
       adminUser.role = 'admin';
       adminUser.emailVerified = true;
+      adminUser.passwordHash = hashPassword(password);
     } else {
-      const created = await createAuthUser(email, password, name);
-      if (!created.ok || !created.authUserId) {
-        res.status(created.status).json({ error: created.error });
-        return;
-      }
       adminUser = {
         id: crypto.randomUUID(),
-        authUserId: created.authUserId,
         name: name || 'Administrador',
         email,
+        passwordHash: hashPassword(password),
         role: 'admin',
         emailVerified: true,
         credits: 600,
@@ -660,46 +637,46 @@ export function registerApiRoutes(app: Express): void {
     }
 
     await saveDb(db);
-    const signIn = await signInWithPassword(email, password);
-    if (!signIn.ok) {
-      res.status(401).json({ error: 'Administrador configurado, mas não foi possível entrar. Tente o login.' });
-      return;
-    }
-    setSessionCookie(res, signIn.session.accessToken, signIn.session.refreshToken);
-    res.json({ token: signIn.session.accessToken, user: sanitizeUser(adminUser) });
+    const token = signSessionToken(adminUser);
+    setSessionCookie(res, token);
+    res.json({ token, user: sanitizeUser(adminUser) });
   });
 
-  app.post('/api/auth/logout', async (req, res) => {
-    const { token } = extractBearerToken(req);
-    if (token) await signOutSession(token);
+  app.post('/api/auth/logout', (_req, res) => {
     clearSessionCookie(res);
     res.json({ ok: true });
   });
 
   app.get('/api/auth/session', async (req, res) => {
-    const session = await resolveSession(req, res);
-    if (!session) {
+    const { token } = extractBearerToken(req);
+    const payload = token ? verifySessionToken(token) : null;
+    if (!payload) {
       res.json({ authenticated: false, user: null });
       return;
     }
-    res.json({ authenticated: true, user: sanitizeUser(session.user), token: session.accessToken });
+    const db = loadDb();
+    await syncPeriodicMonthlyCredits(db, payload.uid);
+    const user = db.users.find((u) => u.id === payload.uid);
+    if (!user) {
+      res.json({ authenticated: false, user: null });
+      return;
+    }
+    const freshToken = signSessionToken(user);
+    res.json({ authenticated: true, user: sanitizeUser(user), token: freshToken });
   });
 
-  app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res) => {
-    res.json({ user: sanitizeUser(req.authUser!), token: req.authToken });
+  app.get('/api/auth/me', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const db = loadDb();
+    await syncPeriodicMonthlyCredits(db, req.authUser!.id);
+    const user = db.users.find((u) => u.id === req.authUser!.id) || req.authUser!;
+    const token = signSessionToken(user);
+    res.json({ user: sanitizeUser(user), token });
   });
 
   // Protected private media routes (never public by default!)
-  // Os arquivos vivem nos buckets privados do Supabase Storage e só saem
-  // daqui depois da checagem de dono/admin — nunca por URL pública.
-  app.get('/media/faces/:filename', async (req, res) => {
+  app.get('/media/faces/:filename', (req, res) => {
     const { token } = extractBearerToken(req);
-    let payload = token ? await validateAccessToken(token) : null;
-    if (!payload) {
-      // Token expirado: tenta renovar com o refresh_token do cookie.
-      const session = await resolveSession(req, res);
-      if (session) payload = { uid: session.user.id, role: session.user.role };
-    }
+    const payload = token ? verifySessionToken(token) : null;
     if (!payload) {
       res.status(401).send('Não autorizado');
       return;
@@ -710,22 +687,17 @@ export function registerApiRoutes(app: Express): void {
       res.status(403).send('Acesso negado');
       return;
     }
-    const buffer = await downloadImageFile(UPLOADS_DIR, req.params.filename);
-    if (!buffer) {
+    const safePath = resolveSafeFile(UPLOADS_DIR, req.params.filename);
+    if (!safePath || !fs.existsSync(safePath)) {
       res.status(404).send('Arquivo não encontrado');
       return;
     }
-    res.type(face.mimeType).send(buffer);
+    res.type(face.mimeType).sendFile(safePath);
   });
 
-  app.get('/media/generated/:filename', async (req, res) => {
+  app.get('/media/generated/:filename', (req, res) => {
     const { token } = extractBearerToken(req);
-    let payload = token ? await validateAccessToken(token) : null;
-    if (!payload) {
-      // Token expirado: tenta renovar com o refresh_token do cookie.
-      const session = await resolveSession(req, res);
-      if (session) payload = { uid: session.user.id, role: session.user.role };
-    }
+    const payload = token ? verifySessionToken(token) : null;
     if (!payload) {
       res.status(401).send('Não autorizado');
       return;
@@ -738,12 +710,12 @@ export function registerApiRoutes(app: Express): void {
       res.status(403).send('Acesso negado');
       return;
     }
-    const buffer = await downloadImageFile(GENERATED_DIR, req.params.filename);
-    if (!buffer) {
+    const safePath = resolveSafeFile(GENERATED_DIR, req.params.filename);
+    if (!safePath || !fs.existsSync(safePath)) {
       res.status(404).send('Arquivo não encontrado');
       return;
     }
-    res.type(gen.mimeType).send(buffer);
+    res.type(gen.mimeType).sendFile(safePath);
   });
 
   // Visual Profile & Face References
@@ -1031,14 +1003,13 @@ export function registerApiRoutes(app: Express): void {
       visualProfile: db.visualProfiles[user.id] ?? null,
     });
 
-    const refParts = (
-      await Promise.all(
-        userFaces.slice(0, 3).map(async (f) => {
-          const b64 = await readImageAsBase64(UPLOADS_DIR, f.filename);
-          return b64 ? { base64: b64, mimeType: f.mimeType } : null;
-        })
-      )
-    ).filter((x): x is { base64: string; mimeType: string } => Boolean(x));
+    const refParts = userFaces
+      .slice(0, 3)
+      .map((f) => {
+        const b64 = readImageAsBase64(UPLOADS_DIR, f.filename);
+        return b64 ? { base64: b64, mimeType: f.mimeType } : null;
+      })
+      .filter((x): x is { base64: string; mimeType: string } => Boolean(x));
 
     const preferredModel = normalizePreferredAiModel(
       req.body?.preferredModel ?? db.visualProfiles[user.id]?.preferredModel ?? user.preferredModel
@@ -1202,7 +1173,7 @@ export function registerApiRoutes(app: Express): void {
         ? generation.versions[generation.versions.length - 1].mimeType
         : generation.mimeType;
 
-    const sourceB64 = await readImageAsBase64(GENERATED_DIR, latestFilename);
+    const sourceB64 = readImageAsBase64(GENERATED_DIR, latestFilename);
     if (!sourceB64) {
       user.credits = refundCredits(user.credits, reservation.reservedAmount);
       await saveDb(db);
@@ -1210,17 +1181,14 @@ export function registerApiRoutes(app: Express): void {
       return;
     }
 
-    const faceRefs = (
-      await Promise.all(
-        db.faceReferences
-          .filter((f) => f.userId === user.id)
-          .slice(0, 2)
-          .map(async (f) => {
-            const b64 = await readImageAsBase64(UPLOADS_DIR, f.filename);
-            return b64 ? { base64: b64, mimeType: f.mimeType } : null;
-          })
-      )
-    ).filter((x): x is { base64: string; mimeType: string } => Boolean(x));
+    const faceRefs = db.faceReferences
+      .filter((f) => f.userId === user.id)
+      .slice(0, 2)
+      .map((f) => {
+        const b64 = readImageAsBase64(UPLOADS_DIR, f.filename);
+        return b64 ? { base64: b64, mimeType: f.mimeType } : null;
+      })
+      .filter((x): x is { base64: string; mimeType: string } => Boolean(x));
 
     const preferredModel = normalizePreferredAiModel(
       db.visualProfiles[user.id]?.preferredModel ?? user.preferredModel
@@ -1619,22 +1587,26 @@ export function registerApiRoutes(app: Express): void {
     res.json({ ok: true });
   });
 
-  app.get('/api/credits', requireAuth, (req: AuthenticatedRequest, res) => {
+  app.get('/api/credits', requireAuth, async (req: AuthenticatedRequest, res) => {
     const db = loadDb();
+    await syncPeriodicMonthlyCredits(db, req.authUser!.id);
     const user = db.users.find((u) => u.id === req.authUser!.id)!;
     const ledger = db.creditLedger.filter((e) => e.userId === user.id);
     res.json({ credits: user.credits, ledger });
   });
 
-  app.get('/api/subscription', requireAuth, (req: AuthenticatedRequest, res) => {
+  app.get('/api/subscription', requireAuth, async (req: AuthenticatedRequest, res) => {
     const db = loadDb();
+    await syncPeriodicMonthlyCredits(db, req.authUser!.id);
     const user = db.users.find((u) => u.id === req.authUser!.id)!;
     const payments = db.payments.filter((p) => p.userId === user.id);
     const plan = db.plans.find((p) => p.id === user.planId) ?? null;
     res.json({
       planId: user.planId,
+      billingInterval: user.billingInterval || 'monthly',
       subscriptionStatus: user.subscriptionStatus,
       currentPeriodEnd: user.currentPeriodEnd,
+      nextMonthlyCreditGrantAt: user.nextMonthlyCreditGrantAt,
       plan,
       payments,
     });
@@ -1644,11 +1616,9 @@ export function registerApiRoutes(app: Express): void {
     const db = loadDb();
     if (rejectIfMaintenance(db, req.authUser?.role, res)) return;
     const stripe = getStripeClient();
-    const planId = req.body?.planId === 'premium' ? 'premium' : 'pro';
-    const priceId =
-      planId === 'premium'
-        ? process.env.STRIPE_PRICE_PREMIUM?.trim()
-        : process.env.STRIPE_PRICE_PRO?.trim();
+    const planId = normalizePaidPlanId(req.body?.planId);
+    const billingInterval = normalizeBillingInterval(req.body?.billingInterval);
+    const priceId = getStripePriceId(planId, billingInterval);
 
     if (!stripe || !priceId) {
       res.status(503).json({
@@ -1672,6 +1642,7 @@ export function registerApiRoutes(app: Express): void {
         metadata: {
           userId: req.authUser!.id,
           planId,
+          billingInterval,
         },
         success_url: `${appUrl}/meu-espaco?tab=assinatura&checkout=success`,
         cancel_url: `${appUrl}/planos?checkout=canceled`,
@@ -1715,7 +1686,9 @@ export function registerApiRoutes(app: Express): void {
     const canceledSubs = db.users.filter((u) => u.subscriptionStatus === 'canceled');
     const mrr = activeSubs.reduce((sum, u) => {
       const plan = db.plans.find((p) => p.id === u.planId);
-      return sum + (plan?.priceBrl ?? 0);
+      if (!plan) return sum;
+      const pricing = getPlanCyclePricing(plan, normalizeBillingInterval(u.billingInterval));
+      return sum + pricing.monthlyEquivalentBrl;
     }, 0);
 
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -1923,13 +1896,5 @@ export function registerApiRoutes(app: Express): void {
     db.notices = db.notices.filter((n) => n.id !== req.params.id);
     await saveDb(db);
     res.json({ ok: true });
-  });
-
-  // Erros inesperados (ex.: Supabase fora do ar ou sem chaves) viram JSON,
-  // sem vazar stack trace em HTML para o navegador.
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('[api] Erro inesperado:', err instanceof Error ? err.message : err);
-    if (res.headersSent) return;
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Erro interno.' });
   });
 }

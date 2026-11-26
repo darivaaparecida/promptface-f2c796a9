@@ -556,13 +556,18 @@ export function AdminPage() {
       )}
 
       {tab === 'planos' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {data.plans.map((p) => (
             <div key={p.id} className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none">
               <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">{p.name}</h2>
-              <p className="text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num">
-                Preço: {p.priceFormatted} · Créditos: {p.creditsMonthly} ({p.maxPhotosMonthly} fotos)
-              </p>
+              <div className="space-y-1 text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+                <p>Mensal: {p.priceFormatted}</p>
+                <p>Trimestral: R$ {p.quarterlyPriceBrl.toFixed(2).replace('.', ',')}</p>
+                <p>Anual: R$ {p.yearlyPriceBrl.toFixed(2).replace('.', ',')}</p>
+                <p className="pt-1 text-slate-950 dark:text-white">
+                  Créditos: {p.creditsMonthly}/mês ({p.maxPhotosMonthly} fotos)
+                </p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Check,
@@ -9,88 +9,55 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react';
-import { FAQ_ITEMS, INITIAL_PLANS, type PlanDefinition } from '../shared/catalog';
+import {
+  FAQ_ITEMS,
+  INITIAL_PLANS,
+  type BillingInterval,
+  type PlanDefinition,
+} from '../shared/catalog';
 import { CREDIT_COSTS, INITIAL_SIGNUP_CREDITS } from '../shared/rules';
 import {
   calculateMonthlyCreditNeeds,
+  formatBrlCurrency,
+  getPlanCyclePricing,
   getPlanUnitMetrics,
 } from '../shared/plansCalculator';
 import { useAuth } from '../context/AuthContext';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
 
 interface ComparisonRow {
   label: string;
   freeTrial: string;
+  essencial: string;
   pro: string;
   premium: string;
 }
 
-const COMPARISON_ROWS: ComparisonRow[] = [
-  {
-    label: 'Créditos incluídos',
-    freeTrial: `${INITIAL_SIGNUP_CREDITS} créditos (único)`,
-    pro: '200 créditos / mês',
-    premium: '600 créditos / mês',
-  },
-  {
-    label: 'Volume máximo de fotos',
-    freeTrial: '1 foto grátis',
-    pro: 'Até 20 fotos / mês',
-    premium: 'Até 60 fotos / mês',
-  },
-  {
-    label: 'Custo efetivo por foto',
-    freeTrial: 'Grátis no cadastro',
-    pro: 'R$ 2,50 por foto',
-    premium: 'R$ 1,67 por foto',
-  },
-  {
-    label: 'Biblioteca com 84 cenários',
-    freeTrial: 'Incluído',
-    pro: 'Incluído',
-    premium: 'Incluído',
-  },
-  {
-    label: 'Criação livre por descrição',
-    freeTrial: 'Incluído',
-    pro: 'Incluído',
-    premium: 'Incluído',
-  },
-  {
-    label: 'Variações a partir de fotos',
-    freeTrial: '10 créditos cada',
-    pro: '10 créditos cada',
-    premium: 'Incluído no volume mensal',
-  },
-  {
-    label: 'PromptFace Studio (edições)',
-    freeTrial: '10 créditos cada',
-    pro: '10 créditos cada',
-    premium: 'Ferramentas avançadas',
-  },
-  {
-    label: 'Perfil Visual privado (LGPD)',
-    freeTrial: 'Incluído',
-    pro: 'Incluído',
-    premium: 'Incluído',
-  },
-  {
-    label: 'Exportação Original, 4:5, 9:16 e 1:1',
-    freeTrial: 'Incluído',
-    pro: 'Incluído',
-    premium: 'Incluído',
-  },
-  {
-    label: 'Acúmulo para o mês seguinte',
-    freeTrial: 'Não aplicável',
-    pro: 'Não acumula',
-    premium: 'Não acumula',
-  },
+const BILLING_CYCLE_OPTIONS: Array<{
+  id: BillingInterval;
+  label: string;
+  badge?: string;
+}> = [
+  { id: 'monthly', label: 'Mensal' },
+  { id: 'quarterly', label: 'Trimestral', badge: '-20%' },
+  { id: 'yearly', label: 'Anual', badge: '-33%' },
 ];
+
+function parseInitialInterval(param: string | null): BillingInterval {
+  if (param === 'mensal') return 'monthly';
+  if (param === 'anual') return 'yearly';
+  if (param === 'trimestral') return 'quarterly';
+  return 'quarterly';
+}
 
 export function PlansPage() {
   const { user, config, apiFetch } = useAuth();
+  const [searchParams] = useSearchParams();
   const [plans, setPlans] = useState<PlanDefinition[]>(INITIAL_PLANS);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(() =>
+    parseInitialInterval(searchParams.get('ciclo'))
+  );
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -119,12 +86,111 @@ export function PlansPage() {
     fetch('/api/catalog')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && Array.isArray(data.plans)) setPlans(data.plans);
+        if (data && Array.isArray(data.plans) && data.plans.length > 0) {
+          setPlans(data.plans);
+        }
       })
       .catch(() => {});
   }, []);
 
-  const baselinePro = plans.find((p) => p.id === 'pro') ?? plans[0];
+  const baselinePlan = plans.find((p) => p.id === 'essencial') ?? plans[0];
+  const essencialPlan = plans.find((p) => p.id === 'essencial') ?? INITIAL_PLANS[0];
+  const proPlan = plans.find((p) => p.id === 'pro') ?? INITIAL_PLANS[1];
+  const premiumPlan = plans.find((p) => p.id === 'premium') ?? INITIAL_PLANS[2];
+
+  const essencialCycle = getPlanCyclePricing(essencialPlan, billingInterval);
+  const proCycle = getPlanCyclePricing(proPlan, billingInterval);
+  const premiumCycle = getPlanCyclePricing(premiumPlan, billingInterval);
+
+  const comparisonRows: ComparisonRow[] = [
+    {
+      label: 'Valor mensal equivalente',
+      freeTrial: 'Grátis',
+      essencial: `${essencialCycle.monthlyEquivalentFormatted}/mês`,
+      pro: `${proCycle.monthlyEquivalentFormatted}/mês`,
+      premium: `${premiumCycle.monthlyEquivalentFormatted}/mês`,
+    },
+    {
+      label: 'Créditos mensais incluídos',
+      freeTrial: `${INITIAL_SIGNUP_CREDITS} créditos (único)`,
+      essencial: `${essencialPlan.creditsMonthly} créditos / mês`,
+      pro: `${proPlan.creditsMonthly} créditos / mês`,
+      premium: `${premiumPlan.creditsMonthly} créditos / mês`,
+    },
+    {
+      label: 'Volume máximo de fotos',
+      freeTrial: '1 foto grátis',
+      essencial: `Até ${essencialPlan.maxPhotosMonthly} fotos / mês`,
+      pro: `Até ${proPlan.maxPhotosMonthly} fotos / mês`,
+      premium: `Até ${premiumPlan.maxPhotosMonthly} fotos / mês`,
+    },
+    {
+      label: 'Custo efetivo por foto',
+      freeTrial: 'Grátis no cadastro',
+      essencial: `${essencialCycle.pricePerPhotoFormatted} por foto`,
+      pro: `${proCycle.pricePerPhotoFormatted} por foto`,
+      premium: `${premiumCycle.pricePerPhotoFormatted} por foto`,
+    },
+    {
+      label: 'Bônus no 1º mês (Trimestral / Anual)',
+      freeTrial: 'Não aplicável',
+      essencial:
+        essencialCycle.bonusCreditsFirstMonth > 0
+          ? `+${essencialCycle.bonusCreditsFirstMonth} créditos extras`
+          : 'Disponível no Trimestral/Anual',
+      pro:
+        proCycle.bonusCreditsFirstMonth > 0
+          ? `+${proCycle.bonusCreditsFirstMonth} créditos extras`
+          : 'Disponível no Trimestral/Anual',
+      premium:
+        premiumCycle.bonusCreditsFirstMonth > 0
+          ? `+${premiumCycle.bonusCreditsFirstMonth} créditos extras`
+          : 'Disponível no Trimestral/Anual',
+    },
+    {
+      label: 'Biblioteca com 84 cenários',
+      freeTrial: 'Incluído',
+      essencial: 'Incluído',
+      pro: 'Incluído',
+      premium: 'Incluído',
+    },
+    {
+      label: 'Criação livre por descrição',
+      freeTrial: 'Incluído',
+      essencial: 'Incluído',
+      pro: 'Incluído',
+      premium: 'Incluído',
+    },
+    {
+      label: 'Variações a partir de fotos',
+      freeTrial: '10 créditos cada',
+      essencial: '10 créditos cada',
+      pro: '10 créditos cada',
+      premium: 'Incluído no volume mensal',
+    },
+    {
+      label: 'PromptFace Studio (edições)',
+      freeTrial: '10 créditos cada',
+      essencial: '10 créditos cada',
+      pro: '10 créditos cada',
+      premium: 'Ferramentas avançadas',
+    },
+    {
+      label: 'Perfil Visual privado (LGPD)',
+      freeTrial: 'Incluído',
+      essencial: 'Incluído',
+      pro: 'Incluído',
+      premium: 'Incluído',
+    },
+    {
+      label: 'Acúmulo para o mês seguinte',
+      freeTrial: 'Não aplicável',
+      essencial: 'Renova todo mês (não acumula)',
+      pro: 'Renova todo mês (não acumula)',
+      premium: 'Renova todo mês (não acumula)',
+    },
+  ];
+
   const usageSummary = calculateMonthlyCreditNeeds({
     photosPerMonth,
     studioActionsPerMonth,
@@ -133,8 +199,14 @@ export function PlansPage() {
 
   const scrollToWaitlist = (planName?: string) => {
     if (planName) {
+      const cycleText =
+        billingInterval === 'quarterly'
+          ? 'Trimestral'
+          : billingInterval === 'yearly'
+          ? 'Anual'
+          : 'Mensal';
       setStatusMsg(
-        `As assinaturas recorrentes do plano ${planName} estão sendo finalizadas. Cadastre seu e-mail abaixo para ser avisado em primeira mão.`
+        `As assinaturas recorrentes do plano ${planName} (${cycleText}) estão sendo finalizadas. Cadastre seu e-mail abaixo para ser avisado em primeira mão.`
       );
     }
     waitlistSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -155,7 +227,7 @@ export function PlansPage() {
     try {
       const res = await apiFetch('/api/checkout', {
         method: 'POST',
-        body: JSON.stringify({ planId: plan.id }),
+        body: JSON.stringify({ planId: plan.id, billingInterval }),
       });
       const data = (await res.json()) as {
         url?: string;
@@ -220,6 +292,8 @@ export function PlansPage() {
   const recommendedLabel =
     usageSummary.recommendedPlanId === 'free_trial'
       ? 'Teste Inicial Grátis'
+      : usageSummary.recommendedPlanId === 'essencial'
+      ? 'Plano Essencial'
       : usageSummary.recommendedPlanId === 'pro'
       ? 'Plano PRO'
       : 'Plano PREMIUM';
@@ -229,7 +303,14 @@ export function PlansPage() {
       ? 'PREMIUM'
       : user?.planId === 'pro'
       ? 'PRO'
+      : user?.planId === 'essencial'
+      ? 'Essencial'
       : 'Teste Inicial';
+
+  const recommendedPlanObj = plans.find((p) => p.id === usageSummary.recommendedPlanId);
+  const recommendedCyclePricing = recommendedPlanObj
+    ? getPlanCyclePricing(recommendedPlanObj, billingInterval)
+    : null;
 
   return (
     <div className="relative overflow-x-hidden">
@@ -243,13 +324,13 @@ export function PlansPage() {
         <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div className="max-w-2xl space-y-3">
             <p className="text-xs font-medium text-violet-700 dark:text-[#A855F7]">
-              Planos em reais (BRL) · Créditos mensais sem fidelidade
+              Planos em reais (BRL) · A partir de {formatBrlCurrency(getPlanCyclePricing(essencialPlan, 'yearly').monthlyEquivalentBrl)}/mês no Anual
             </p>
             <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.65rem] font-bold tracking-tight leading-[1.12] text-slate-950 dark:text-white text-balance">
-              Escolha o volume ideal para as suas fotografias
+              Escolha o plano e o ciclo ideal para as suas fotografias
             </h1>
             <p className="text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
-              Comece com {INITIAL_SIGNUP_CREDITS} créditos grátis (1 foto gratuita) ao criar sua conta. Depois, assine o plano compatível com a sua frequência de criação.
+              Comece com {INITIAL_SIGNUP_CREDITS} créditos grátis (1 foto gratuita) ao criar sua conta. Depois, economize até 33% nos planos Trimestral e Anual com liberação mensal de créditos e bônus no 1º mês.
             </p>
           </div>
 
@@ -273,9 +354,9 @@ export function PlansPage() {
               </Link>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700 dark:text-[#A1A1AA] shrink-0">
-              <ShieldCheck className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
-              <span>Referências privadas por padrão · Cancele quando quiser</span>
+            <div className="flex items-start sm:items-center gap-2.5 text-xs text-slate-700 dark:text-[#A1A1AA] shrink-0">
+              <ShieldCheck className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
+              <span>Referências privadas por padrão · Créditos renovados todo mês</span>
             </div>
           )}
         </header>
@@ -296,77 +377,76 @@ export function PlansPage() {
           </div>
         )}
 
-        {/* Grade de planos: Teste Inicial + PRO + PREMIUM */}
-        <section aria-label="Planos disponíveis" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Card 1: Teste Inicial Grátis */}
-          <article className="lg:col-span-4 rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface p-6 sm:p-7 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="font-display text-xl font-bold text-slate-950 dark:text-white">Teste Inicial</h2>
-                <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">Sem cartão</span>
-              </div>
-
-              <div className="mt-5 flex items-baseline gap-2">
-                <span className="font-display text-4xl font-bold text-slate-950 dark:text-white font-mono-num">
-                  R$ 0
-                </span>
-                <span className="text-sm text-slate-700 dark:text-[#A1A1AA]">no cadastro</span>
-              </div>
-
-              <p className="mt-1.5 text-xs font-medium text-violet-700 dark:text-[#8B5CF6] font-mono-num">
-                {INITIAL_SIGNUP_CREDITS} créditos grátis · 1 foto completa
-              </p>
-
-              <p className="mt-3 text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
-                Ideal para enviar suas fotos de referência, montar seu Perfil Visual e validar a qualidade realista antes de assinar.
-              </p>
-
-              <ul className="mt-6 space-y-2.5">
-                {[
-                  '10 créditos únicos ao criar a conta',
-                  'Acesso para testar qualquer um dos 84 cenários',
-                  'Download em alta resolução sem marca d’água visível',
-                  'Referências faciais protegidas por LGPD',
-                ].map((feature) => (
-                  <li key={feature} className="flex items-start gap-2.5 text-sm text-slate-800 dark:text-white/90">
-                    <Check className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0 mt-0.5" aria-hidden="true" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="mt-8">
-              {user ? (
-                <Link
-                  to="/criar"
-                  className="inline-flex items-center justify-center gap-2 w-full px-5 py-3.5 rounded-xl border border-slate-300 bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] transition-colors whitespace-nowrap"
+        {/* Seletor de ciclo: Mensal | Trimestral (-20%) | Anual (-33%) */}
+        <section aria-label="Ciclo de cobrança" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div
+            role="group"
+            aria-label="Selecione o ciclo de pagamento"
+            className="grid grid-cols-3 sm:inline-flex items-center gap-1 p-1.5 rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] shadow-sm dark:shadow-none w-full sm:w-fit"
+          >
+            {BILLING_CYCLE_OPTIONS.map((opt) => {
+              const active = billingInterval === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setBillingInterval(opt.id)}
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                    active
+                      ? 'bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-white shadow-md shadow-[#7C3AED]/20'
+                      : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5'
+                  }`}
                 >
-                  <span>Criar fotografia agora</span>
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              ) : (
-                <Link
-                  to="/login?modo=cadastro"
-                  className="inline-flex items-center justify-center gap-2 w-full px-5 py-3.5 rounded-xl border border-slate-300 bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] transition-colors whitespace-nowrap"
-                >
-                  <span>Testar grátis agora</span>
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </Link>
-              )}
-            </div>
-          </article>
+                  <span>{opt.label}</span>
+                  {opt.badge && (
+                    <span
+                      className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-mono-num font-bold ${
+                        active
+                          ? 'bg-white/20 text-white'
+                          : 'bg-violet-100 text-violet-800 dark:bg-[#7C3AED]/25 dark:text-[#C4B5FD]'
+                      }`}
+                    >
+                      {opt.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Cards 2 e 3: PRO e PREMIUM */}
+          <div className="flex flex-wrap items-center gap-3">
+            <PlanSavingsBadge
+              cyclePricing={premiumCycle}
+              variant="cycle"
+              testId="plans-cycle-savings-badge"
+            />
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-[#A1A1AA]">
+              {billingInterval === 'yearly'
+                ? '+ 50 créditos bônus no 1º mês em todos os planos.'
+                : billingInterval === 'quarterly'
+                ? '+ 20 créditos bônus no 1º mês em todos os planos.'
+                : 'Mensal: cobrança recorrente mês a mês sem fidelidade.'}
+            </p>
+          </div>
+        </section>
+
+        {/* Grade de planos pagos: Essencial + PRO + PREMIUM */}
+        <section aria-label="Planos disponíveis" className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
           {plans.map((plan) => {
-            const metrics = getPlanUnitMetrics(plan, baselinePro);
-            const isCurrentPlan = user?.planId === plan.id && user?.subscriptionStatus === 'active';
+            const cyclePricing = getPlanCyclePricing(plan, billingInterval);
+            const metrics = getPlanUnitMetrics(plan, baselinePlan, billingInterval);
+            const isCurrentPlan =
+              user?.planId === plan.id &&
+              user?.subscriptionStatus === 'active' &&
+              (user?.billingInterval || 'monthly') === billingInterval;
             const isHighlighted = Boolean(plan.highlighted);
 
             return (
               <article
                 key={plan.id}
-                className={`lg:col-span-4 rounded-2xl p-6 sm:p-7 flex flex-col justify-between border transition-colors ${
+                data-testid={`plan-card-${plan.id}`}
+                className={`rounded-2xl p-6 sm:p-7 flex flex-col justify-between border transition-colors ${
                   isHighlighted
                     ? 'border-violet-700 bg-gradient-to-b from-violet-50 via-white to-white dark:border-[#7C3AED] dark:from-[#201833] dark:via-[#17171F] dark:to-[#17171F] shadow-xl shadow-[#7C3AED]/15'
                     : 'border-slate-300 dark:border-white/10 pf-card-surface'
@@ -384,15 +464,38 @@ export function PlansPage() {
                     </span>
                   </div>
 
-                  <div className="mt-5 flex items-baseline gap-2">
-                    <span className="font-display text-4xl font-bold text-slate-950 dark:text-white font-mono-num">
-                      {plan.priceFormatted}
+                  <div className="mt-5 flex items-baseline gap-2 flex-wrap">
+                    <span
+                      data-testid={`plan-price-${plan.id}`}
+                      className="font-display text-4xl font-bold text-slate-950 dark:text-white font-mono-num"
+                    >
+                      {cyclePricing.monthlyEquivalentFormatted}
                     </span>
                     <span className="text-sm text-slate-700 dark:text-[#A1A1AA]">/ mês</span>
+                    {billingInterval !== 'monthly' && (
+                      <span className="text-xs text-slate-500 dark:text-[#71717A] line-through font-mono-num">
+                        {plan.priceFormatted}
+                      </span>
+                    )}
                   </div>
 
-                  <p className="mt-1.5 text-xs font-medium text-violet-700 dark:text-[#A855F7] font-mono-num">
-                    {plan.creditsMonthly} créditos/mês · {metrics.pricePerPhotoFormatted} por foto
+                  <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+                    {cyclePricing.billingCycleDescription}
+                  </p>
+
+                  <PlanSavingsBadge
+                    cyclePricing={cyclePricing}
+                    testId={`plan-savings-badge-${plan.id}`}
+                    className="mt-3"
+                  />
+
+                  <p className="mt-3 text-xs font-medium text-violet-700 dark:text-[#A855F7] font-mono-num">
+                    {plan.creditsMonthly} créditos/mês
+                    {cyclePricing.bonusCreditsFirstMonth > 0
+                      ? ` (+${cyclePricing.bonusCreditsFirstMonth} bônus no 1º mês)`
+                      : ''}
+                    {' · '}
+                    {metrics.pricePerPhotoFormatted} por foto
                     {metrics.savingsVsBasePercent > 0
                       ? ` · ${metrics.savingsVsBasePercent}% mais econômico`
                       : ''}
@@ -450,7 +553,7 @@ export function PlansPage() {
                         {loadingPlan === plan.id
                           ? 'Abrindo checkout...'
                           : config.stripeConfigured
-                          ? `Assinar ${plan.name}`
+                          ? `Assinar ${plan.name} ${cyclePricing.intervalLabel}`
                           : `Avisar sobre ${plan.name}`}
                       </span>
                     </button>
@@ -459,6 +562,46 @@ export function PlansPage() {
               </article>
             );
           })}
+        </section>
+
+        {/* Teste Inicial Grátis (10 créditos no cadastro) */}
+        <section
+          aria-label="Teste Inicial Grátis"
+          className="rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface p-6 sm:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+        >
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="font-display text-lg sm:text-xl font-bold text-slate-950 dark:text-white">
+                Teste Inicial Grátis · R$ 0 no cadastro
+              </h2>
+              <span className="text-xs font-medium text-violet-700 dark:text-[#A855F7] font-mono-num">
+                {INITIAL_SIGNUP_CREDITS} créditos grátis · 1 foto completa · Sem cartão
+              </span>
+            </div>
+            <p className="text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+              Envie suas fotos de referência com proteção LGPD, monte seu Perfil Visual e teste qualquer um dos 84 cenários antes de escolher um plano mensal, trimestral ou anual.
+            </p>
+          </div>
+
+          <div className="shrink-0">
+            {user ? (
+              <Link
+                to="/criar"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-300 bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] transition-colors whitespace-nowrap"
+              >
+                <span>Criar fotografia agora</span>
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </Link>
+            ) : (
+              <Link
+                to="/login?modo=cadastro"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-300 bg-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] transition-colors whitespace-nowrap"
+              >
+                <span>Testar grátis agora</span>
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </Link>
+            )}
+          </div>
         </section>
 
         {/* Simulador / Calculadora interativa de créditos mensais */}
@@ -540,9 +683,9 @@ export function PlansPage() {
                     ? 'Seu volume supera os 600 créditos do ciclo Premium mensal. Para uso contínuo acima disso, recomenda-se iniciar pelo Premium e acompanhar o saldo em Meu Espaço.'
                     : usageSummary.recommendedPlanId === 'free_trial'
                     ? 'Os 10 créditos gratuitos do cadastro já cobrem esse teste inicial sem custo.'
-                    : usageSummary.recommendedPlanId === 'pro'
-                    ? 'O plano PRO entrega 200 créditos mensais por R$ 49,90 (R$ 2,50 por foto), suficiente para esse ritmo.'
-                    : 'O plano PREMIUM entrega 600 créditos mensais por R$ 99,90 (R$ 1,67 por foto) com 33% de economia por foto.'}
+                    : recommendedPlanObj && recommendedCyclePricing
+                    ? `O plano ${recommendedPlanObj.name} entrega ${recommendedPlanObj.creditsMonthly} créditos mensais por ${recommendedCyclePricing.monthlyEquivalentFormatted}/mês no ciclo ${recommendedCyclePricing.intervalLabel} (${recommendedCyclePricing.pricePerPhotoFormatted} por foto).`
+                    : ''}
                 </p>
               </div>
 
@@ -560,7 +703,7 @@ export function PlansPage() {
                   disabled={loadingPlan === usageSummary.recommendedPlanId}
                   onClick={() => {
                     const targetPlan =
-                      plans.find((p) => p.id === usageSummary.recommendedPlanId) ?? plans[1];
+                      plans.find((p) => p.id === usageSummary.recommendedPlanId) ?? proPlan;
                     if (user && targetPlan) {
                       void handleSubscribe(targetPlan);
                     } else if (!user) {
@@ -597,30 +740,36 @@ export function PlansPage() {
               id="comparativo-planos-titulo"
               className="font-display text-xl sm:text-2xl font-bold text-slate-950 dark:text-white"
             >
-              Comparativo completo entre planos
+              Comparativo completo entre planos ({essencialCycle.intervalLabel})
             </h2>
             <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
-              Todos os recursos incluídos no Teste Inicial, PRO e PREMIUM em uma visão única.
+              Todos os recursos incluídos no Teste Inicial, Essencial, PRO e PREMIUM em uma visão única.
             </p>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface">
-            <table className="w-full text-left border-collapse min-w-[640px]">
+            <table className="w-full text-left border-collapse min-w-[760px]">
               <thead>
                 <tr className="border-b border-slate-300 dark:border-white/10 text-xs uppercase tracking-wider text-slate-700 dark:text-[#A1A1AA]">
                   <th className="py-4 px-5 font-medium">Recurso</th>
                   <th className="py-4 px-5 font-medium">Teste Inicial</th>
-                  <th className="py-4 px-5 font-medium">PRO · R$ 49,90</th>
+                  <th className="py-4 px-5 font-medium">
+                    Essencial · {essencialCycle.monthlyEquivalentFormatted}
+                  </th>
+                  <th className="py-4 px-5 font-medium">
+                    PRO · {proCycle.monthlyEquivalentFormatted}
+                  </th>
                   <th className="py-4 px-5 font-medium text-violet-700 dark:text-[#A855F7]">
-                    PREMIUM · R$ 99,90
+                    PREMIUM · {premiumCycle.monthlyEquivalentFormatted}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-white/10 text-sm">
-                {COMPARISON_ROWS.map((row) => (
+                {comparisonRows.map((row) => (
                   <tr key={row.label} className="hover:bg-slate-100/70 dark:hover:bg-white/[0.02] transition-colors">
                     <td className="py-3.5 px-5 font-medium text-slate-950 dark:text-white">{row.label}</td>
                     <td className="py-3.5 px-5 text-slate-700 dark:text-[#A1A1AA] font-mono-num">{row.freeTrial}</td>
+                    <td className="py-3.5 px-5 text-slate-900 dark:text-white/90 font-mono-num">{row.essencial}</td>
                     <td className="py-3.5 px-5 text-slate-900 dark:text-white/90 font-mono-num">{row.pro}</td>
                     <td className="py-3.5 px-5 text-slate-950 dark:text-white font-medium font-mono-num">
                       {row.premium}

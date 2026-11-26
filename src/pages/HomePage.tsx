@@ -8,13 +8,16 @@ import {
   HERO_SHOWCASE_IMAGES,
   INITIAL_PLANS,
   INITIAL_SCENARIOS,
+  type BillingInterval,
   type CategoryItem,
   type PlanDefinition,
   type ScenarioItem,
 } from '../shared/catalog';
+import { getPlanCyclePricing } from '../shared/plansCalculator';
 import { BeforeAfterShowcase } from '../components/BeforeAfterSlider';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
 import { useAuth } from '../context/AuthContext';
 
 export function HomePage() {
@@ -22,6 +25,7 @@ export function HomePage() {
   const [categories, setCategories] = useState<CategoryItem[]>(CATEGORIES);
   const [scenarios, setScenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
   const [plans, setPlans] = useState<PlanDefinition[]>(INITIAL_PLANS);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('quarterly');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
@@ -328,60 +332,134 @@ export function HomePage() {
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`rounded-2xl p-6 sm:p-8 flex flex-col justify-between border pf-card-surface ${
-                plan.highlighted
-                  ? 'border-violet-700 dark:border-[#7C3AED] shadow-xl shadow-[#7C3AED]/15'
-                  : 'border-slate-300 dark:border-white/10'
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-display text-xl font-bold text-slate-950 dark:text-white">{plan.name}</h3>
-                  <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">{plan.audience}</span>
-                </div>
-
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span className="font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white font-mono-num">
-                    {plan.priceFormatted}
-                  </span>
-                  <span className="text-sm text-slate-700 dark:text-[#A1A1AA]">/ mês</span>
-                </div>
-                <p className="mt-1 text-xs font-medium text-violet-700 dark:text-[#8B5CF6] font-mono-num">
-                  {plan.creditsMonthly} créditos mensais · até {plan.maxPhotosMonthly} fotos por mês
-                </p>
-
-                <p className="mt-3 text-sm text-slate-700 dark:text-[#A1A1AA]">{plan.description}</p>
-
-                <ul className="mt-6 space-y-2.5">
-                  {plan.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-2.5 text-sm text-slate-800 dark:text-white/90">
-                      <Check className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0 mt-0.5" aria-hidden="true" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="mt-8">
-                <Link
-                  to={user ? `/planos?selecionar=${plan.id}` : '/login?modo=cadastro'}
-                  className={`block w-full text-center px-5 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
-                    plan.highlighted
-                      ? 'text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110'
-                      : 'text-violet-950 border border-violet-700 hover:bg-violet-100 dark:text-white dark:border-[#7C3AED] dark:hover:bg-[#7C3AED]/15'
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <div
+            role="group"
+            aria-label="Ciclo de cobrança"
+            className="grid grid-cols-3 sm:inline-flex items-center gap-1 p-1.5 rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] w-full sm:w-fit"
+          >
+            {[
+              { id: 'monthly' as const, label: 'Mensal' },
+              { id: 'quarterly' as const, label: 'Trimestral', badge: '-20%' },
+              { id: 'yearly' as const, label: 'Anual', badge: '-33%' },
+            ].map((opt) => {
+              const active = billingInterval === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setBillingInterval(opt.id)}
+                  className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+                    active
+                      ? 'bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-white'
+                      : 'text-slate-700 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white'
                   }`}
                 >
-                  {config.stripeConfigured
-                    ? `Assinar plano ${plan.name}`
-                    : 'Garantir 1ª foto grátis · Pagamentos em breve'}
-                </Link>
+                  <span>{opt.label}</span>
+                  {opt.badge && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono-num font-bold ${
+                        active
+                          ? 'bg-white/20 text-white'
+                          : 'bg-violet-100 text-violet-800 dark:bg-[#7C3AED]/25 dark:text-[#C4B5FD]'
+                      }`}
+                    >
+                      {opt.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <PlanSavingsBadge
+            cyclePricing={getPlanCyclePricing(
+              plans.find((p) => p.id === 'premium') ?? INITIAL_PLANS[2],
+              billingInterval
+            )}
+            variant="cycle"
+            testId="home-cycle-savings-badge"
+          />
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {plans.map((plan) => {
+            const cyclePricing = getPlanCyclePricing(plan, billingInterval);
+            return (
+              <div
+                key={plan.id}
+                className={`rounded-2xl p-6 sm:p-8 flex flex-col justify-between border pf-card-surface ${
+                  plan.highlighted
+                    ? 'border-violet-700 dark:border-[#7C3AED] shadow-xl shadow-[#7C3AED]/15'
+                    : 'border-slate-300 dark:border-white/10'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-display text-xl font-bold text-slate-950 dark:text-white">{plan.name}</h3>
+                    <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">{plan.audience}</span>
+                  </div>
+
+                  <div className="mt-4 flex items-baseline gap-2 flex-wrap">
+                    <span className="font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white font-mono-num">
+                      {cyclePricing.monthlyEquivalentFormatted}
+                    </span>
+                    <span className="text-sm text-slate-700 dark:text-[#A1A1AA]">/ mês</span>
+                    {billingInterval !== 'monthly' && (
+                      <span className="text-xs text-slate-500 dark:text-[#71717A] line-through font-mono-num">
+                        {plan.priceFormatted}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-[#A1A1AA] font-mono-num">
+                    {cyclePricing.billingCycleDescription}
+                  </p>
+                  <PlanSavingsBadge
+                    cyclePricing={cyclePricing}
+                    testId={`home-plan-savings-badge-${plan.id}`}
+                    className="mt-2.5"
+                  />
+                  <p className="mt-2.5 text-xs font-medium text-violet-700 dark:text-[#8B5CF6] font-mono-num">
+                    {plan.creditsMonthly} créditos mensais · até {plan.maxPhotosMonthly} fotos por mês
+                    {cyclePricing.bonusCreditsFirstMonth > 0
+                      ? ` (+${cyclePricing.bonusCreditsFirstMonth} bônus no 1º mês)`
+                      : ''}
+                  </p>
+
+                  <p className="mt-3 text-sm text-slate-700 dark:text-[#A1A1AA]">{plan.description}</p>
+
+                  <ul className="mt-6 space-y-2.5">
+                    {plan.features.map((feat) => (
+                      <li key={feat} className="flex items-start gap-2.5 text-sm text-slate-800 dark:text-white/90">
+                        <Check className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0 mt-0.5" aria-hidden="true" />
+                        <span>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-8">
+                  <Link
+                    to={
+                      user
+                        ? `/planos?selecionar=${plan.id}&ciclo=${billingInterval === 'quarterly' ? 'trimestral' : billingInterval === 'yearly' ? 'anual' : 'mensal'}`
+                        : '/login?modo=cadastro'
+                    }
+                    className={`block w-full text-center px-5 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
+                      plan.highlighted
+                        ? 'text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110'
+                        : 'text-violet-950 border border-violet-700 hover:bg-violet-100 dark:text-white dark:border-[#7C3AED] dark:hover:bg-[#7C3AED]/15'
+                    }`}
+                  >
+                    {config.stripeConfigured
+                      ? `Assinar plano ${plan.name}`
+                      : 'Garantir 1ª foto grátis · Pagamentos em breve'}
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {!config.stripeConfigured && (

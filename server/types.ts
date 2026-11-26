@@ -1,4 +1,11 @@
-import type { CategoryItem, PlanDefinition, ScenarioItem } from '../src/shared/catalog.ts';
+import type {
+  BillingInterval,
+  CategoryItem,
+  PaidPlanId,
+  PlanDefinition,
+  PlanId,
+  ScenarioItem,
+} from '../src/shared/catalog.ts';
 import type { VisualProfileData } from '../src/shared/rules.ts';
 import type { PreferredAiModelId } from '../src/shared/aiModels.ts';
 import type { MaintenanceConfig } from '../src/shared/adminStats.ts';
@@ -6,22 +13,22 @@ import type { FalQuotaState } from '../src/shared/providerQuota.ts';
 
 export interface UserRecord {
   id: string;
-  // ID do usuário no Supabase Auth (auth.users.id). undefined em contas
-  // importadas do JSON antigo, que ainda não têm login no Supabase Auth.
-  authUserId?: string;
   name: string;
   email: string;
+  passwordHash: string;
   role: 'user' | 'admin';
   emailVerified: boolean;
   verificationCode?: string;
   resetCode?: string;
   resetExpiresAt?: number;
   credits: number;
-  planId: 'free_trial' | 'pro' | 'premium';
+  planId: PlanId;
+  billingInterval?: BillingInterval;
   subscriptionStatus: 'inactive' | 'active' | 'canceled' | 'past_due';
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   currentPeriodEnd?: string;
+  nextMonthlyCreditGrantAt?: string;
   preferredModel?: PreferredAiModelId;
   createdAt: string;
 }
@@ -84,7 +91,8 @@ export interface CreditLedgerEntry {
 export interface PaymentRecord {
   id: string;
   userId: string;
-  planId: 'pro' | 'premium';
+  planId: PaidPlanId;
+  billingInterval?: BillingInterval;
   amountBrl: number;
   status: 'paid' | 'canceled' | 'refunded' | 'pending';
   stripeSessionId?: string;

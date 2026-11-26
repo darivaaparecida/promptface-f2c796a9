@@ -22,12 +22,20 @@ export interface ScenarioItem {
   active: boolean;
 }
 
+export type PaidPlanId = 'essencial' | 'pro' | 'premium';
+export type PlanId = 'free_trial' | PaidPlanId;
+export type BillingInterval = 'monthly' | 'quarterly' | 'yearly';
+
 export interface PlanDefinition {
-  id: 'pro' | 'premium';
+  id: PaidPlanId;
   name: string;
   audience: string;
   priceBrl: number;
   priceFormatted: string;
+  quarterlyPriceBrl: number;
+  yearlyPriceBrl: number;
+  quarterlyBonusCredits: number;
+  yearlyBonusCredits: number;
   creditsMonthly: number;
   maxPhotosMonthly: number;
   description: string;
@@ -1118,21 +1126,46 @@ export const INITIAL_SCENARIOS: ScenarioItem[] = CATEGORIES.flatMap((category) =
 
 export const INITIAL_PLANS: PlanDefinition[] = [
   {
+    id: 'essencial',
+    name: 'Essencial',
+    audience: 'Entrada acessível',
+    priceBrl: 24.9,
+    priceFormatted: 'R$ 24,90',
+    quarterlyPriceBrl: 59.7,
+    yearlyPriceBrl: 199.0,
+    quarterlyBonusCredits: 20,
+    yearlyBonusCredits: 50,
+    creditsMonthly: 80,
+    maxPhotosMonthly: 8,
+    description: 'Para quem quer renovar foto de perfil, currículo ou redes sociais gastando pouco por mês.',
+    features: [
+      '80 créditos mensais (até 8 fotos por mês)',
+      'Acesso completo aos 84 cenários prontos',
+      'Criação livre com descrição personalizada',
+      'Perfil Visual salvo com suas referências privadas',
+      'Créditos liberados todo mês (não acumulam)',
+    ],
+  },
+  {
     id: 'pro',
     name: 'PRO',
     audience: 'Para uso pessoal e redes sociais',
     priceBrl: 49.9,
     priceFormatted: 'R$ 49,90',
+    quarterlyPriceBrl: 119.7,
+    yearlyPriceBrl: 399.0,
+    quarterlyBonusCredits: 20,
+    yearlyBonusCredits: 50,
     creditsMonthly: 200,
     maxPhotosMonthly: 20,
-    description: 'Ideal para renovar seu perfil, criar fotos profissionais e explorar cenários prontos.',
+    description: 'Ideal para renovar seu perfil com frequência, criar fotos profissionais e explorar cenários.',
     features: [
       '200 créditos mensais (até 20 fotos por mês)',
       'Acesso completo aos 84 cenários prontos',
       'Criação livre com descrição personalizada',
       'Perfil Visual salvo com suas referências privadas',
       'Galeria pessoal em alta resolução',
-      'Créditos mensais não acumulam para o mês seguinte',
+      'Créditos liberados todo mês (não acumulam)',
     ],
   },
   {
@@ -1141,6 +1174,10 @@ export const INITIAL_PLANS: PlanDefinition[] = [
     audience: 'Para criadores e uso frequente',
     priceBrl: 99.9,
     priceFormatted: 'R$ 99,90',
+    quarterlyPriceBrl: 239.7,
+    yearlyPriceBrl: 799.0,
+    quarterlyBonusCredits: 20,
+    yearlyBonusCredits: 50,
     creditsMonthly: 600,
     maxPhotosMonthly: 60,
     description: 'Mais volume mensal, variações e acesso completo às edições no PromptFace Studio.',
@@ -1150,7 +1187,7 @@ export const INITIAL_PLANS: PlanDefinition[] = [
       'Criação de variações a partir de fotos geradas (10 créditos)',
       'Ferramentas avançadas de edição no PromptFace Studio',
       'Acesso antecipado a novos cenários da plataforma',
-      'Créditos mensais não acumulam para o mês seguinte',
+      'Créditos liberados todo mês (não acumulam)',
     ],
     highlighted: true,
   },
@@ -1160,6 +1197,10 @@ export const FAQ_ITEMS = [
   {
     q: 'Como funciona a primeira foto grátis?',
     a: 'Ao criar sua conta no PromptFace, você recebe automaticamente 10 créditos grátis, o equivalente exato a 1 fotografia gerada (10 créditos por geração). Não há plano gratuito recorrente além desses 10 créditos iniciais.',
+  },
+  {
+    q: 'Como funcionam os planos Trimestral e Anual?',
+    a: 'Nos ciclos Trimestral (~20% de desconto) e Anual (~33% de desconto), você garante o valor mensal reduzido pagando o ciclo adiantado e recebe sua cota de créditos renovada todos os meses, além de +20 créditos bônus no 1º mês do Trimestral ou +50 créditos bônus no 1º mês do Anual.',
   },
   {
     q: 'A IA realmente preserva o meu rosto?',
@@ -1175,11 +1216,11 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Os créditos não utilizados acumulam para o próximo mês?',
-    a: 'Não. Os créditos dos planos PRO (200 créditos/mês, até 20 fotos) e PREMIUM (600 créditos/mês, até 60 fotos) são renovados a cada ciclo mensal e não acumulam para o mês seguinte.',
+    a: 'Não. Os créditos dos planos Essencial (80 créditos/mês), PRO (200 créditos/mês) e PREMIUM (600 créditos/mês) são renovados a cada mês do ciclo contratado e não acumulam para o mês seguinte.',
   },
   {
     q: 'Posso cancelar minha assinatura quando quiser?',
-    a: 'Sim. Quando a cobrança recorrente via Stripe estiver ativa, você poderá cancelar, fazer upgrade ou downgrade diretamente em Meu Espaço > Minha assinatura, mantendo seus créditos até o fim do ciclo atual.',
+    a: 'Sim. Quando a cobrança recorrente via Stripe estiver ativa, você poderá cancelar, fazer upgrade ou downgrade diretamente em Meu Espaço > Minha assinatura, mantendo seus créditos mensais até o fim do ciclo já pago.',
   },
 ];
 
