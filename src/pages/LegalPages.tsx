@@ -11,7 +11,7 @@ export function TermsPage() {
       </p>
       <h2 className="font-display text-lg font-semibold text-slate-950 dark:text-white pt-2">2. Créditos e assinaturas</h2>
       <p>
-        Novos cadastros recebem 10 créditos iniciais (equivalente a 1 foto grátis). Planos mensais renovam os créditos a cada ciclo e créditos não utilizados não acumulam para o mês seguinte. Em caso de falha técnica na geração, os créditos reservados são estornados automaticamente.
+        Novos cadastros recebem 20 créditos iniciais (equivalente a 2 fotos grátis). Planos mensais renovam os créditos a cada ciclo e créditos não utilizados não acumulam para o mês seguinte. Em caso de falha técnica na geração, os créditos reservados são estornados automaticamente.
       </p>
       <h2 className="font-display text-lg font-semibold text-slate-950 dark:text-white pt-2">3. Suporte</h2>
       <p>

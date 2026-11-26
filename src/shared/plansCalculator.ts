@@ -62,9 +62,9 @@ export function calculateMonthlyCreditNeeds(
   let recommendedPlanId: PlanId = 'premium';
   if (totalCredits <= INITIAL_SIGNUP_CREDITS) {
     recommendedPlanId = 'free_trial';
-  } else if (totalCredits <= 80) {
+  } else if (totalCredits <= 150) {
     recommendedPlanId = 'essencial';
-  } else if (totalCredits <= 200) {
+  } else if (totalCredits <= 400) {
     recommendedPlanId = 'pro';
   }
 
@@ -77,7 +77,7 @@ export function calculateMonthlyCreditNeeds(
     enhanceCredits,
     totalCredits,
     recommendedPlanId,
-    exceedsPremiumLimit: totalCredits > 600,
+    exceedsPremiumLimit: totalCredits > 800,
   };
 }
 

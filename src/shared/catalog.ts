@@ -1135,11 +1135,11 @@ export const INITIAL_PLANS: PlanDefinition[] = [
     yearlyPriceBrl: 199.0,
     quarterlyBonusCredits: 20,
     yearlyBonusCredits: 50,
-    creditsMonthly: 80,
-    maxPhotosMonthly: 8,
+    creditsMonthly: 150,
+    maxPhotosMonthly: 15,
     description: 'Para quem quer renovar foto de perfil, currículo ou redes sociais gastando pouco por mês.',
     features: [
-      '80 créditos mensais (até 8 fotos por mês)',
+      '150 créditos mensais (até 15 fotos por mês)',
       'Acesso completo aos 84 cenários prontos',
       'Criação livre com descrição personalizada',
       'Perfil Visual salvo com suas referências privadas',
@@ -1156,11 +1156,11 @@ export const INITIAL_PLANS: PlanDefinition[] = [
     yearlyPriceBrl: 399.0,
     quarterlyBonusCredits: 20,
     yearlyBonusCredits: 50,
-    creditsMonthly: 200,
-    maxPhotosMonthly: 20,
+    creditsMonthly: 400,
+    maxPhotosMonthly: 40,
     description: 'Ideal para renovar seu perfil com frequência, criar fotos profissionais e explorar cenários.',
     features: [
-      '200 créditos mensais (até 20 fotos por mês)',
+      '400 créditos mensais (até 40 fotos por mês)',
       'Acesso completo aos 84 cenários prontos',
       'Criação livre com descrição personalizada',
       'Perfil Visual salvo com suas referências privadas',
@@ -1178,11 +1178,11 @@ export const INITIAL_PLANS: PlanDefinition[] = [
     yearlyPriceBrl: 799.0,
     quarterlyBonusCredits: 20,
     yearlyBonusCredits: 50,
-    creditsMonthly: 600,
-    maxPhotosMonthly: 60,
+    creditsMonthly: 800,
+    maxPhotosMonthly: 80,
     description: 'Mais volume mensal, variações e acesso completo às edições no PromptFace Studio.',
     features: [
-      '600 créditos mensais (até 60 fotos por mês)',
+      '800 créditos mensais (até 80 fotos por mês)',
       'Tudo do plano PRO incluído',
       'Criação de variações a partir de fotos geradas (10 créditos)',
       'Ferramentas avançadas de edição no PromptFace Studio',
@@ -1195,8 +1195,8 @@ export const INITIAL_PLANS: PlanDefinition[] = [
 
 export const FAQ_ITEMS = [
   {
-    q: 'Como funciona a primeira foto grátis?',
-    a: 'Ao criar sua conta no PromptFace, você recebe automaticamente 10 créditos grátis, o equivalente exato a 1 fotografia gerada (10 créditos por geração). Não há plano gratuito recorrente além desses 10 créditos iniciais.',
+    q: 'Como funcionam as fotos grátis do cadastro?',
+    a: 'Ao criar sua conta no PromptFace, você recebe automaticamente 20 créditos grátis, o equivalente exato a 2 fotografias geradas (10 créditos por geração). Não há plano gratuito recorrente além desses 20 créditos iniciais.',
   },
   {
     q: 'Como funcionam os planos Trimestral e Anual?',
@@ -1216,7 +1216,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Os créditos não utilizados acumulam para o próximo mês?',
-    a: 'Não. Os créditos dos planos Essencial (80 créditos/mês), PRO (200 créditos/mês) e PREMIUM (600 créditos/mês) são renovados a cada mês do ciclo contratado e não acumulam para o mês seguinte.',
+    a: 'Não. Os créditos dos planos Essencial (150 créditos/mês), PRO (400 créditos/mês) e PREMIUM (800 créditos/mês) são renovados a cada mês do ciclo contratado e não acumulam para o mês seguinte.',
   },
   {
     q: 'Posso cancelar minha assinatura quando quiser?',

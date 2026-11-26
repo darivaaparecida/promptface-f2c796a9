@@ -32,7 +32,7 @@ test('plans math is consistent and never advertises unlimited', () => {
   assert.equal(pro.creditsMonthly / CREDIT_COSTS.generate, pro.maxPhotosMonthly);
   assert.equal(premium.priceBrl, 99.9);
   assert.equal(premium.creditsMonthly / CREDIT_COSTS.generate, premium.maxPhotosMonthly);
-  assert.equal(INITIAL_SIGNUP_CREDITS, 10);
+  assert.equal(INITIAL_SIGNUP_CREDITS, 20);
 
   const allText = JSON.stringify(INITIAL_PLANS).toLowerCase();
   assert.equal(allText.includes('ilimitad'), false);

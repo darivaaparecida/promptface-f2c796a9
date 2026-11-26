@@ -102,7 +102,7 @@ export function LoginPage() {
       }
       if (confirmationSent) {
         setMode('verify');
-        setInfoMsg('Cadastro realizado! Confirme seu e-mail para liberar seus 10 créditos grátis.');
+        setInfoMsg('Cadastro realizado! Confirme seu e-mail para liberar seus 20 créditos grátis.');
         return;
       }
       navigate(redirectTo, { replace: true });
@@ -249,14 +249,14 @@ export function LoginPage() {
                 >
                   <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-950 dark:text-white">
                     {mode === 'login' && 'Acesse seu estúdio PromptFace'}
-                    {mode === 'register' && 'Crie sua conta com 1 foto grátis'}
+                    {mode === 'register' && 'Crie sua conta com 2 fotos grátis'}
                     {mode === 'verify' && 'Confirme seu e-mail'}
                     {mode === 'forgot' && 'Recuperar senha'}
                     {mode === 'reset' && 'Definir nova senha'}
                   </h1>
                   <p className="mt-2 text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
                     {mode === 'register'
-                      ? 'Ao confirmar seu cadastro você recebe 10 créditos grátis para testar sua primeira geração.'
+                      ? 'Ao confirmar seu cadastro você recebe 20 créditos grátis para testar suas 2 primeiras gerações.'
                       : 'Suas referências faciais e galeria ficam protegidas na sua conta.'}
                   </p>
                 </motion.div>
@@ -422,7 +422,7 @@ export function LoginPage() {
                       >
                         {submitting && <ButtonSpinner size="md" />}
                         <span>
-                          {submitting ? 'Criando conta...' : 'Criar conta e ganhar 10 créditos'}
+                          {submitting ? 'Criando conta...' : 'Criar conta e ganhar 20 créditos'}
                         </span>
                         {!submitting && <Sparkles className="w-4 h-4" aria-hidden="true" />}
                       </motion.button>
@@ -433,7 +433,7 @@ export function LoginPage() {
                     <div className="space-y-4">
                       <div className="rounded-xl border border-violet-600/45 bg-violet-50 text-violet-950 dark:bg-[#7C3AED]/15 dark:border-[#7C3AED]/40 px-4 py-3 text-sm dark:text-white leading-relaxed">
                         Enviamos um link de confirmação para <strong>{email}</strong>. Clique
-                        no link para ativar sua conta e liberar seus 10 créditos grátis. Não
+                        no link para ativar sua conta e liberar seus 20 créditos grátis. Não
                         esqueça de verificar a caixa de spam.
                       </div>
                       <button
@@ -648,7 +648,7 @@ export function LoginPage() {
                     Planos claros, sem surpresas
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-700 dark:text-[#A1A1AA]">
-                    Comece com <strong className="text-slate-950 dark:text-white">10 créditos grátis</strong> (1 foto gratuita) e escolha depois:
+                    Comece com <strong className="text-slate-950 dark:text-white">20 créditos grátis</strong> (2 fotos gratuitas) e escolha depois:
                   </p>
                 </div>
                 <Link

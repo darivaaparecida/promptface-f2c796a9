@@ -98,7 +98,7 @@ export function HomePage() {
             </div>
 
             <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
-              10 créditos grátis no cadastro (1 foto gratuita) · Fotos de referência privadas por padrão
+              20 créditos grátis no cadastro (2 fotos gratuitas) · Fotos de referência privadas por padrão
             </p>
           </motion.div>
 
@@ -305,10 +305,10 @@ export function HomePage() {
             Planos e assinaturas
           </p>
           <h2 className="mt-2 font-display text-2xl sm:text-3xl font-bold text-slate-950 dark:text-white text-balance">
-            Comece com 1 foto grátis no cadastro
+            Comece com 2 fotos grátis no cadastro
           </h2>
           <p className="mt-2 text-sm text-slate-700 dark:text-[#A1A1AA]">
-            Todo novo cadastro recebe 10 créditos grátis (equivalente a 1 foto). Cada geração, variação ou edição no Studio custa 10 créditos; melhorar descrição custa 1 crédito. Créditos mensais não acumulam.
+            Todo novo cadastro recebe 20 créditos grátis (equivalente a 2 fotos). Cada geração, variação ou edição no Studio custa 10 créditos; melhorar descrição custa 1 crédito. Créditos mensais não acumulam.
           </p>
         </div>
 
@@ -434,7 +434,7 @@ export function HomePage() {
                   >
                     {config.stripeConfigured
                       ? `Assinar plano ${plan.name}`
-                      : 'Garantir 1ª foto grátis · Pagamentos em breve'}
+                      : 'Garantir 2 fotos grátis · Pagamentos em breve'}
                   </Link>
                 </div>
               </div>
