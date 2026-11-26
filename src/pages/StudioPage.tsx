@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Download, History, MoveHorizontal, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Download, History, Images, MoveHorizontal, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { listGenerations } from '../lib/db';
 import { useToast } from '../context/ToastContext';
@@ -54,6 +54,7 @@ export function StudioPage() {
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [imageReady, setImageReady] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const [photosSheetOpen, setPhotosSheetOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [betaNotice, setBetaNotice] = useState(false);
 
@@ -115,6 +116,27 @@ export function StudioPage() {
     }
   };
 
+  // Mesma seleção do inline, mas fecha o bottom sheet no mobile. No desktop
+  // o sheet nunca está aberto, então o setPhotosSheetOpen(false) é no-op.
+  const handleSelectGenerationAndClose = (id: string) => {
+    handleSelectGeneration(id);
+    setPhotosSheetOpen(false);
+  };
+
+  const handleSelectVersionAndClose = (url: string) => {
+    setActiveVersionUrl(url);
+    setPhotosSheetOpen(false);
+  };
+
+  useEffect(() => {
+    if (!photosSheetOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPhotosSheetOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [photosSheetOpen]);
+
   const handleApplyEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGen || !instruction.trim()) return;
@@ -167,8 +189,103 @@ export function StudioPage() {
   const falQuota = config.falQuota;
   const falBlocked = Boolean(falQuota?.active && falQuota.exhausted);
 
+  // Listas reutilizadas no desktop (inline) e no mobile (bottom sheet).
+  // Os botões não têm id; só título/miniatura e os mesmos handlers.
+  const photoList = (
+    <div
+      role="listbox"
+      aria-label="Fotografia ativa"
+      className="space-y-2 max-h-56 overflow-y-auto pr-0.5"
+    >
+      {generations.map((g) => {
+        const thumbUrl =
+          g.versions.length > 0
+            ? g.versions[g.versions.length - 1].url
+            : g.url;
+        const active = g.id === selectedId;
+        return (
+          <button
+            key={g.id}
+            type="button"
+            role="option"
+            aria-selected={active}
+            onClick={() => handleSelectGenerationAndClose(g.id)}
+            className={`w-full flex items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition-colors ${
+              active
+                ? 'border-violet-700 bg-violet-100 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15'
+                : 'border-slate-300 bg-slate-50 hover:border-slate-400 dark:border-white/10 dark:bg-[#08080C] dark:hover:border-white/25'
+            }`}
+          >
+            <ImageWithFallback
+              src={getMediaUrl(thumbUrl)}
+              alt={g.scenarioTitle}
+              className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
+            />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-slate-950 dark:text-white">
+                {g.scenarioTitle}
+              </span>
+              <span className="block text-[11px] text-slate-600 dark:text-[#A1A1AA]">
+                {g.versions.length > 0
+                  ? `${g.versions.length} ${g.versions.length === 1 ? 'edição' : 'edições'}`
+                  : 'Versão original'}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const versionList = selectedGen ? (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => handleSelectVersionAndClose(selectedGen.url)}
+        className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl border text-xs transition-colors ${
+          displayUrl === selectedGen.url
+            ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
+            : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
+        }`}
+      >
+        <ImageWithFallback
+          src={getMediaUrl(selectedGen.url)}
+          alt="Versão original"
+          className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
+        />
+        <span className="min-w-0 text-left">
+          <span className="font-semibold text-slate-950 dark:text-white block">Versão original</span>
+          <span className="text-[11px] block truncate">{selectedGen.scenarioTitle}</span>
+        </span>
+      </button>
+
+      {selectedGen.versions.map((ver, idx) => (
+        <button
+          key={ver.id}
+          type="button"
+          onClick={() => handleSelectVersionAndClose(ver.url)}
+          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl border text-xs transition-colors ${
+            displayUrl === ver.url
+              ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
+              : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
+          }`}
+        >
+          <ImageWithFallback
+            src={getMediaUrl(ver.url)}
+            alt={`Edição v${idx + 1}`}
+            className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
+          />
+          <span className="min-w-0 text-left">
+            <span className="font-semibold text-slate-950 dark:text-white block">Edição v{idx + 1}</span>
+            <span className="text-[11px] line-clamp-1 block">{ver.instruction}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 pb-24 lg:pb-14 space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
@@ -302,52 +419,13 @@ export function StudioPage() {
         {/* Right: Controls & History */}
         <div className="lg:col-span-5 space-y-6">
           <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-5 shadow-sm dark:shadow-none">
-            <div className="space-y-1.5">
-              <span className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
-                Fotografia ativa
-              </span>
-              <div
-                role="listbox"
-                aria-label="Fotografia ativa"
-                className="space-y-2 max-h-56 overflow-y-auto pr-0.5"
-              >
-                {generations.map((g) => {
-                  const thumbUrl =
-                    g.versions.length > 0
-                      ? g.versions[g.versions.length - 1].url
-                      : g.url;
-                  const active = g.id === selectedId;
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      onClick={() => handleSelectGeneration(g.id)}
-                      className={`w-full flex items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition-colors ${
-                        active
-                          ? 'border-violet-700 bg-violet-100 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15'
-                          : 'border-slate-300 bg-slate-50 hover:border-slate-400 dark:border-white/10 dark:bg-[#08080C] dark:hover:border-white/25'
-                      }`}
-                    >
-                      <ImageWithFallback
-                        src={getMediaUrl(thumbUrl)}
-                        alt={g.scenarioTitle}
-                        className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
-                      />
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-slate-950 dark:text-white">
-                          {g.scenarioTitle}
-                        </span>
-                        <span className="block text-[11px] text-slate-600 dark:text-[#A1A1AA]">
-                          {g.versions.length > 0
-                            ? `${g.versions.length} ${g.versions.length === 1 ? 'edição' : 'edições'}`
-                            : 'Versão original'}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
+            {/* No mobile vive no bottom sheet; no desktop fica inline. */}
+            <div className="hidden lg:block">
+              <div className="space-y-1.5">
+                <span className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
+                  Fotografia ativa
+                </span>
+                {photoList}
               </div>
             </div>
 
@@ -428,9 +506,9 @@ export function StudioPage() {
             </form>
           </div>
 
-          {/* Version history */}
+          {/* Version history — no mobile vive no bottom sheet. */}
           {selectedGen && (
-            <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none">
+            <div className="hidden lg:block rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
                 <h2 className="font-display text-sm font-semibold text-slate-950 dark:text-white">
@@ -438,54 +516,75 @@ export function StudioPage() {
                 </h2>
               </div>
 
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveVersionUrl(selectedGen.url)}
-                  className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl border text-xs transition-colors ${
-                    displayUrl === selectedGen.url
-                      ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
-                      : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
-                  }`}
-                >
-                  <ImageWithFallback
-                    src={getMediaUrl(selectedGen.url)}
-                    alt="Versão original"
-                    className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
-                  />
-                  <span className="min-w-0 text-left">
-                    <span className="font-semibold text-slate-950 dark:text-white block">Versão original</span>
-                    <span className="text-[11px] block truncate">{selectedGen.scenarioTitle}</span>
-                  </span>
-                </button>
-
-                {selectedGen.versions.map((ver, idx) => (
-                  <button
-                    key={ver.id}
-                    type="button"
-                    onClick={() => setActiveVersionUrl(ver.url)}
-                    className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl border text-xs transition-colors ${
-                      displayUrl === ver.url
-                        ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
-                        : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
-                    }`}
-                  >
-                    <ImageWithFallback
-                      src={getMediaUrl(ver.url)}
-                      alt={`Edição v${idx + 1}`}
-                      className="w-10 h-12 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-white/10"
-                    />
-                    <span className="min-w-0 text-left">
-                      <span className="font-semibold text-slate-950 dark:text-white block">Edição v{idx + 1}</span>
-                      <span className="text-[11px] line-clamp-1 block">{ver.instruction}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
+              {versionList}
             </div>
           )}
         </div>
       </div>
+
+      {/* Mobile: botão flutuante que abre fotos e versões sob demanda */}
+      <button
+        type="button"
+        onClick={() => setPhotosSheetOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={photosSheetOpen}
+        className="fixed bottom-5 right-4 z-40 lg:hidden inline-flex items-center gap-2 px-4 py-3 rounded-full bg-[#7C3AED] text-white text-xs font-semibold uppercase tracking-wider shadow-lg shadow-[#7C3AED]/30 hover:brightness-110 transition-all"
+      >
+        <Images className="w-4 h-4" aria-hidden="true" />
+        Fotos e versões
+      </button>
+
+      {/* Mobile: bottom sheet com fotos e versões (só abaixo de lg) */}
+      {photosSheetOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Fotos e versões"
+          className="fixed inset-0 z-50 lg:hidden bg-black/60 backdrop-blur-sm flex items-end"
+          onClick={() => setPhotosSheetOpen(false)}
+        >
+          <div
+            className="w-full rounded-t-3xl bg-white dark:bg-[#12121A] border-t border-slate-300 dark:border-white/15 max-h-[85vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              aria-hidden="true"
+              className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 mx-auto mt-3 mb-1 shrink-0"
+            />
+            <div className="px-5 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between gap-3 shrink-0">
+              <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">
+                Fotos e versões
+              </h2>
+              <button
+                type="button"
+                aria-label="Fechar fotos e versões"
+                onClick={() => setPhotosSheetOpen(false)}
+                className="min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-4 sm:px-5 py-4 space-y-6">
+              <section className="space-y-2">
+                <h3 className="text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
+                  Fotografia ativa
+                </h3>
+                {photoList}
+              </section>
+
+              {selectedGen && (
+                <section className="space-y-2">
+                  <h3 className="text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
+                    Histórico de versões ({1 + selectedGen.versions.length})
+                  </h3>
+                  {versionList}
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
