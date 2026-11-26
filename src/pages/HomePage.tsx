@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Check } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -19,31 +19,18 @@ import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
 import { useAuth } from '../context/AuthContext';
+import { joinWaitlist } from '../lib/db';
 
 export function HomePage() {
   const { user, config } = useAuth();
-  const [categories, setCategories] = useState<CategoryItem[]>(CATEGORIES);
-  const [scenarios, setScenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
-  const [plans, setPlans] = useState<PlanDefinition[]>(INITIAL_PLANS);
+  const [categories] = useState<CategoryItem[]>(CATEGORIES);
+  const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
+  const [plans] = useState<PlanDefinition[]>(INITIAL_PLANS);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('quarterly');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
   const [waitlistStatus, setWaitlistStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/catalog')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data) return;
-        if (Array.isArray(data.categories)) setCategories(data.categories);
-        if (Array.isArray(data.scenarios)) setScenarios(data.scenarios);
-        if (Array.isArray(data.plans)) setPlans(data.plans);
-      })
-      .catch(() => {
-        // Fallback to static catalog
-      });
-  }, []);
 
   const popularScenarios = scenarios.filter((s) => s.popular).slice(0, 6);
 
@@ -52,20 +39,13 @@ export function HomePage() {
     setWaitlistSubmitting(true);
     setWaitlistStatus(null);
     try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: waitlistEmail, feature: 'payments' }),
-      });
-      const data = (await res.json()) as { message?: string; error?: string };
-      if (res.ok) {
-        setWaitlistStatus(data.message || 'Cadastro confirmado na lista de espera.');
-        setWaitlistEmail('');
-      } else {
-        setWaitlistStatus(data.error || 'Verifique o e-mail informado.');
-      }
-    } catch {
-      setWaitlistStatus('Não foi possível registrar seu e-mail agora.');
+      await joinWaitlist(waitlistEmail, 'payments');
+      setWaitlistStatus('Você entrou na lista de espera prioritária.');
+      setWaitlistEmail('');
+    } catch (err) {
+      setWaitlistStatus(
+        err instanceof Error ? err.message : 'Verifique o e-mail informado.'
+      );
     } finally {
       setWaitlistSubmitting(false);
     }

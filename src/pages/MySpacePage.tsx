@@ -31,6 +31,24 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  batchDeleteGenerations,
+  batchMoveToFolder,
+  batchSetTags,
+  createFolder,
+  deleteFolder,
+  deleteGeneration,
+  getCredits,
+  getSubscription,
+  getVisualProfile,
+  listFaces,
+  listFolders,
+  listGenerations,
+  moveGenerationToFolder,
+  renameFolder,
+  setGenerationTags,
+  toggleFavorite,
+} from '../lib/db';
 import { useToast } from '../context/ToastContext';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { MySpaceDashboard } from '../components/MySpaceDashboard';
@@ -106,6 +124,11 @@ function shouldOpenOnboardingTour(): boolean {
   }
 }
 
+/** Mensagem de erro de uma função da camada de dados, com fallback. */
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 type TabId =
   | 'fotos'
   | 'favoritos'
@@ -164,7 +187,7 @@ interface PaymentItem {
 }
 
 export function MySpacePage() {
-  const { user, apiFetch, getMediaUrl, logout, refreshUser } = useAuth();
+  const { user, getMediaUrl, logout } = useAuth();
   const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as TabId) || 'fotos';
@@ -256,35 +279,24 @@ export function MySpacePage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const [genRes, profRes, credRes, subRes, foldersRes] = await Promise.all([
-        apiFetch('/api/generations'),
-        apiFetch('/api/profile'),
-        apiFetch('/api/credits'),
-        apiFetch('/api/subscription'),
-        apiFetch('/api/folders').catch(() => null),
-      ]);
+      const [genList, profResult, credResult, subResult, facesList, foldersList] =
+        await Promise.all([
+          listGenerations(),
+          getVisualProfile(),
+          getCredits(),
+          getSubscription(),
+          listFaces(),
+          listFolders().catch(() => null),
+        ]);
 
-      if (!genRes.ok || !profRes.ok || !credRes.ok || !subRes.ok) {
-        setErrorMsg('Não foi possível carregar alguns dados do seu espaço agora. Tente novamente.');
-        return;
-      }
+      setGenerations(genList);
+      setFaces(facesList);
+      setProfile(profResult.profile);
+      setLedger(credResult.ledger);
+      setSubscription(subResult);
 
-      const [genData, profData, credData, subData] = await Promise.all([
-        genRes.json(),
-        profRes.json(),
-        credRes.json(),
-        subRes.json(),
-      ]);
-
-      setGenerations(genData.generations || []);
-      setFaces(profData.faces || []);
-      setProfile(profData.profile || null);
-      setLedger(credData.ledger || []);
-      setSubscription(subData);
-
-      if (foldersRes && foldersRes.ok) {
-        const foldersData = (await foldersRes.json()) as { folders?: FolderItem[] };
-        setFolders(foldersData.folders || []);
+      if (foldersList) {
+        setFolders(foldersList);
       }
     } catch {
       setErrorMsg('Falha temporária ao carregar seu espaço pessoal. Atualize a página.');
@@ -420,29 +432,18 @@ export function MySpacePage() {
 
     setCreatingFolder(true);
     try {
-      const res = await apiFetch('/api/folders', {
-        method: 'POST',
-        body: JSON.stringify({ name: check.name }),
-      });
-      const data = (await res.json()) as { folder?: FolderItem; error?: string };
-      if (!res.ok || !data.folder) {
-        setFolderFeedback({
-          type: 'error',
-          text: data.error || 'Não foi possível criar a pasta.',
-        });
-        return;
-      }
-      setFolders((prev) => [...prev, data.folder!]);
+      const folder = await createFolder(check.name);
+      setFolders((prev) => [...prev, folder]);
       setNewFolderInput('');
       setShowNewFolderForm(false);
       setFolderFeedback({
         type: 'success',
-        text: `Pasta "${data.folder.name}" criada.`,
+        text: `Pasta "${folder.name}" criada.`,
       });
-    } catch {
+    } catch (err) {
       setFolderFeedback({
         type: 'error',
-        text: 'Erro de conexão ao criar a pasta.',
+        text: errorMessage(err, 'Erro de conexão ao criar a pasta.'),
       });
     } finally {
       setCreatingFolder(false);
@@ -467,31 +468,20 @@ export function MySpacePage() {
 
     setRenamingFolder(true);
     try {
-      const res = await apiFetch(`/api/folders/${editingFolderId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name: check.name }),
-      });
-      const data = (await res.json()) as { folder?: FolderItem; error?: string };
-      if (!res.ok || !data.folder) {
-        setFolderFeedback({
-          type: 'error',
-          text: data.error || 'Não foi possível renomear a pasta.',
-        });
-        return;
-      }
+      const folder = await renameFolder(editingFolderId, check.name);
       setFolders((prev) =>
-        prev.map((f) => (f.id === data.folder!.id ? data.folder! : f))
+        prev.map((f) => (f.id === folder.id ? folder : f))
       );
       setEditingFolderId(null);
       setEditingFolderName('');
       setFolderFeedback({
         type: 'success',
-        text: `Pasta renomeada para "${data.folder.name}".`,
+        text: `Pasta renomeada para "${folder.name}".`,
       });
-    } catch {
+    } catch (err) {
       setFolderFeedback({
         type: 'error',
-        text: 'Erro de conexão ao renomear a pasta.',
+        text: errorMessage(err, 'Erro de conexão ao renomear a pasta.'),
       });
     } finally {
       setRenamingFolder(false);
@@ -503,17 +493,7 @@ export function MySpacePage() {
     const target = folderById.get(folderId);
     setDeletingFolderId(folderId);
     try {
-      const res = await apiFetch(`/api/folders/${folderId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        setFolderFeedback({
-          type: 'error',
-          text: data.error || 'Não foi possível excluir a pasta.',
-        });
-        return;
-      }
+      await deleteFolder(folderId);
       setFolders((prev) => prev.filter((f) => f.id !== folderId));
       setGenerations((prev) => clearDeletedFolderFromGenerations(prev, folderId));
       setLightboxItem((prev) =>
@@ -528,10 +508,10 @@ export function MySpacePage() {
           ? `Pasta "${target.name}" excluída. Suas fotos permanecem em "Sem pasta".`
           : 'Pasta excluída.',
       });
-    } catch {
+    } catch (err) {
       setFolderFeedback({
         type: 'error',
-        text: 'Erro de conexão ao excluir a pasta.',
+        text: errorMessage(err, 'Erro de conexão ao excluir a pasta.'),
       });
     } finally {
       setDeletingFolderId(null);
@@ -542,22 +522,7 @@ export function MySpacePage() {
     setFolderFeedback(null);
     setAssigningFolderPhotoId(photoId);
     try {
-      const res = await apiFetch(`/api/generations/${photoId}/folder`, {
-        method: 'PATCH',
-        body: JSON.stringify({ folderId: targetFolderId }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        folderId?: string | null;
-        error?: string;
-      };
-      if (!res.ok) {
-        setFolderFeedback({
-          type: 'error',
-          text: data.error || 'Não foi possível mover a foto para a pasta.',
-        });
-        return;
-      }
-      const nextFolderId = data.folderId ?? null;
+      const nextFolderId = await moveGenerationToFolder(photoId, targetFolderId);
       setGenerations((prev) =>
         applyFolderToGenerations(prev, [photoId], nextFolderId)
       );
@@ -566,10 +531,10 @@ export function MySpacePage() {
           ? { ...prev, folderId: nextFolderId ?? undefined }
           : prev
       );
-    } catch {
+    } catch (err) {
       setFolderFeedback({
         type: 'error',
-        text: 'Erro de conexão ao atualizar a pasta da foto.',
+        text: errorMessage(err, 'Erro de conexão ao atualizar a pasta da foto.'),
       });
     } finally {
       setAssigningFolderPhotoId(null);
@@ -580,27 +545,15 @@ export function MySpacePage() {
     setErrorMsg(null);
     setUpdatingTagPhotoId(photoId);
     try {
-      const res = await apiFetch(`/api/generations/${photoId}/tags`, {
-        method: 'PATCH',
-        body: JSON.stringify({ tags: nextTags }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        tags?: string[];
-        error?: string;
-      };
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Não foi possível atualizar as tags da foto.');
-        return;
-      }
-      const savedTags = data.tags ?? nextTags;
+      const savedTags = await setGenerationTags(photoId, nextTags);
       setGenerations((prev) =>
         prev.map((g) => (g.id === photoId ? { ...g, tags: savedTags } : g))
       );
       setLightboxItem((prev) =>
         prev && prev.id === photoId ? { ...prev, tags: savedTags } : prev
       );
-    } catch {
-      setErrorMsg('Erro de conexão ao salvar as tags da foto.');
+    } catch (err) {
+      setErrorMsg(errorMessage(err, 'Erro de conexão ao salvar as tags da foto.'));
     } finally {
       setUpdatingTagPhotoId(null);
     }
@@ -611,24 +564,8 @@ export function MySpacePage() {
     setTaggingBatch(true);
     setErrorMsg(null);
     try {
-      const res = await apiFetch('/api/generations/batch-tags', {
-        method: 'POST',
-        body: JSON.stringify({
-          generationIds: selectedIds,
-          tag: tagName,
-          action: 'add',
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        updated?: Array<{ id: string; tags: string[] }>;
-        tag?: string;
-        error?: string;
-      };
-      if (!res.ok || !data.updated) {
-        setErrorMsg(data.error || 'Não foi possível aplicar a tag às fotos selecionadas.');
-        return;
-      }
-      const updatedMap = new Map(data.updated.map((u) => [u.id, u.tags]));
+      const updated = await batchSetTags(selectedIds, tagName, 'add');
+      const updatedMap = new Map(updated.map((u) => [u.id, u.tags]));
       setGenerations((prev) =>
         prev.map((g) => (updatedMap.has(g.id) ? { ...g, tags: updatedMap.get(g.id)! } : g))
       );
@@ -637,16 +574,16 @@ export function MySpacePage() {
           ? { ...prev, tags: updatedMap.get(prev.id)! }
           : prev
       );
-      const appliedLabel = data.tag || tagName;
+      const appliedLabel = tagName;
       addToast({
         variant: 'success',
         title: 'Tag aplicada em lote',
-        description: `Tag "${appliedLabel}" adicionada em ${data.updated.length} foto${
-          data.updated.length > 1 ? 's' : ''
+        description: `Tag "${appliedLabel}" adicionada em ${updated.length} foto${
+          updated.length > 1 ? 's' : ''
         }.`,
       });
-    } catch {
-      setErrorMsg('Erro de conexão ao aplicar tag em lote.');
+    } catch (err) {
+      setErrorMsg(errorMessage(err, 'Erro de conexão ao aplicar tag em lote.'));
     } finally {
       setTaggingBatch(false);
     }
@@ -659,27 +596,8 @@ export function MySpacePage() {
     const targetId = batchTargetFolderId || null;
 
     try {
-      const res = await apiFetch('/api/generations/batch-folder', {
-        method: 'POST',
-        body: JSON.stringify({
-          generationIds: selectedIds,
-          folderId: targetId,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        updatedIds?: string[];
-        folderId?: string | null;
-        error?: string;
-      };
-      if (!res.ok) {
-        setFolderFeedback({
-          type: 'error',
-          text: data.error || 'Não foi possível mover as fotos selecionadas.',
-        });
-        return;
-      }
-      const updatedIds = data.updatedIds ?? selectedIds;
-      const resolvedFolderId = data.folderId ?? null;
+      const updatedIds = await batchMoveToFolder(selectedIds, targetId);
+      const resolvedFolderId = targetId;
       setGenerations((prev) =>
         applyFolderToGenerations(prev, updatedIds, resolvedFolderId)
       );
@@ -697,10 +615,10 @@ export function MySpacePage() {
         description: msg,
       });
       setSelectedIds([]);
-    } catch {
+    } catch (err) {
       setFolderFeedback({
         type: 'error',
-        text: 'Erro de conexão ao mover fotos em lote.',
+        text: errorMessage(err, 'Erro de conexão ao mover fotos em lote.'),
       });
     } finally {
       setMovingBatch(false);
@@ -713,19 +631,8 @@ export function MySpacePage() {
     setFolderFeedback(null);
     setErrorMsg(null);
     try {
-      const res = await apiFetch('/api/generations/batch-delete', {
-        method: 'POST',
-        body: JSON.stringify({ generationIds: selectedIds }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        deletedIds?: string[];
-        error?: string;
-      };
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Não foi possível excluir as fotografias selecionadas.');
-        return;
-      }
-      const deletedSet = new Set(data.deletedIds ?? selectedIds);
+      const deletedIds = await batchDeleteGenerations(selectedIds);
+      const deletedSet = new Set(deletedIds);
       setGenerations((prev) => prev.filter((g) => !deletedSet.has(g.id)));
       setSelectedIds((prev) => prev.filter((id) => !deletedSet.has(id)));
       if (lightboxItem && deletedSet.has(lightboxItem.id)) {
@@ -741,8 +648,8 @@ export function MySpacePage() {
         title: 'Exclusão em lote concluída',
         description: msg,
       });
-    } catch {
-      setErrorMsg('Erro de conexão ao excluir fotografias em lote.');
+    } catch (err) {
+      setErrorMsg(errorMessage(err, 'Erro de conexão ao excluir fotografias em lote.'));
     } finally {
       setDeletingBatch(false);
     }
@@ -781,7 +688,7 @@ export function MySpacePage() {
         })),
         appliedFilters,
         fetchImageBlob: async (url) => {
-          const res = await apiFetch(url);
+          const res = await fetch(url);
           if (!res.ok) throw new Error('Falha ao carregar imagem para o PDF.');
           return res.blob();
         },
@@ -852,16 +759,15 @@ export function MySpacePage() {
   const handleToggleFavorite = async (id: string) => {
     setTogglingFavoriteId(id);
     try {
-      const res = await apiFetch(`/api/generations/${id}/favorite`, { method: 'PATCH' });
-      if (res.ok) {
-        const data = (await res.json()) as { favorite: boolean };
-        setGenerations((prev) =>
-          prev.map((g) => (g.id === id ? { ...g, favorite: data.favorite } : g))
-        );
-        if (lightboxItem?.id === id) {
-          setLightboxItem((prev) => (prev ? { ...prev, favorite: data.favorite } : null));
-        }
+      const favorite = await toggleFavorite(id);
+      setGenerations((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, favorite } : g))
+      );
+      if (lightboxItem?.id === id) {
+        setLightboxItem((prev) => (prev ? { ...prev, favorite } : null));
       }
+    } catch {
+      // Falha silenciosa, como antes: o coração só não muda de estado.
     } finally {
       setTogglingFavoriteId(null);
     }
@@ -870,12 +776,12 @@ export function MySpacePage() {
   const handleDeleteGeneration = async (id: string) => {
     setDeletingPhotoId(id);
     try {
-      const res = await apiFetch(`/api/generations/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setGenerations((prev) => prev.filter((g) => g.id !== id));
-        setSelectedIds((prev) => prev.filter((item) => item !== id));
-        if (lightboxItem?.id === id) setLightboxItem(null);
-      }
+      await deleteGeneration(id);
+      setGenerations((prev) => prev.filter((g) => g.id !== id));
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
+      if (lightboxItem?.id === id) setLightboxItem(null);
+    } catch {
+      // Falha silenciosa, como antes: a foto permanece na lista.
     } finally {
       setDeletingPhotoId(null);
     }
@@ -900,7 +806,7 @@ export function MySpacePage() {
     setErrorMsg(null);
     const activeFormat = formatOverride ?? exportFormat;
     try {
-      const res = await apiFetch(item.url);
+      const res = await fetch(item.url);
       if (!res.ok) {
         throw new Error('Falha ao baixar imagem');
       }
@@ -929,7 +835,7 @@ export function MySpacePage() {
   const handleShareInstagram = async (
     item: GenerationItem
   ): Promise<{ mode: 'native' | 'downloaded'; message: string }> => {
-    const res = await apiFetch(item.url);
+    const res = await fetch(item.url);
     if (!res.ok) {
       throw new Error('Falha ao carregar imagem para o Instagram.');
     }
@@ -1010,7 +916,7 @@ export function MySpacePage() {
       const zip = new JSZip();
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
-        const res = await apiFetch(item.url);
+        const res = await fetch(item.url);
         if (!res.ok) {
           throw new Error(`Falha ao baixar ${item.scenarioTitle}`);
         }
@@ -1050,17 +956,12 @@ export function MySpacePage() {
     }
   };
 
-  const handleCancelSubscription = async () => {
-    setCancelingSubscription(true);
-    try {
-      const res = await apiFetch('/api/subscription/cancel', { method: 'POST' });
-      if (res.ok) {
-        await refreshUser();
-        await loadSpaceData();
-      }
-    } finally {
-      setCancelingSubscription(false);
-    }
+  const handleCancelSubscription = () => {
+    // Fase 1: o cancelamento no Stripe precisa de servidor e chega na Fase 2
+    // via Edge Function. Não altera o estado da assinatura.
+    setErrorMsg(
+      'O cancelamento da assinatura chega junto com os pagamentos (Fase 2). Por enquanto, fale com o suporte.'
+    );
   };
 
   const tabs: { id: TabId; label: string }[] = [

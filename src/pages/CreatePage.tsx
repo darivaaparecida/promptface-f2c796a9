@@ -26,6 +26,7 @@ import {
   type PreferredAiModelId,
 } from '../shared/aiModels';
 import { useAuth } from '../context/AuthContext';
+import { getVisualProfile, joinWaitlist, listFaces, toggleFavorite } from '../lib/db';
 import { useToast } from '../context/ToastContext';
 import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
 import { ButtonSpinner } from '../components/ButtonSpinner';
@@ -56,7 +57,7 @@ const LOADING_MESSAGES = [
 ];
 
 export function CreatePage() {
-  const { user, config, apiFetch, updateCredits, refreshConfig, getMediaUrl } = useAuth();
+  const { user, config, updateCredits, refreshConfig, getMediaUrl } = useAuth();
   const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -108,33 +109,30 @@ export function CreatePage() {
     [scenarios, selectedScenarioId]
   );
 
-  useEffect(() => {
-    fetch('/api/catalog')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && Array.isArray(data.scenarios) && data.scenarios.length > 0) {
-          setScenarios(data.scenarios);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  // O catálogo (cenários) vem do código (src/shared/catalog.ts) — o estado
+  // já nasce com INITIAL_SCENARIOS e não há busca no servidor nesta fase.
 
   useEffect(() => {
-    apiFetch('/api/profile')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && Array.isArray(data.faces)) {
-          setFaces(data.faces);
-        }
-        if (data) {
-          setPreferredModel(
-            normalizePreferredAiModel(
-              data.profile?.preferredModel ?? data.preferredModel ?? user?.preferredModel
-            )
-          );
-        }
+    let cancelled = false;
+    Promise.all([getVisualProfile(), listFaces()])
+      .then(([profileResult, faceList]) => {
+        if (cancelled) return;
+        setFaces(faceList.map((face) => ({ id: face.id, url: face.url })));
+        setPreferredModel(
+          normalizePreferredAiModel(
+            profileResult.profile?.preferredModel ??
+              profileResult.preferredModel ??
+              user?.preferredModel
+          )
+        );
       })
-      .finally(() => setLoadingProfile(false));
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingProfile(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -173,126 +171,33 @@ export function CreatePage() {
       setErrorMsg('Escreva uma ideia inicial antes de usar Melhorar minha descrição.');
       return;
     }
-    setEnhancing(true);
-    try {
-      const res = await apiFetch('/api/enhance-prompt', {
-        method: 'POST',
-        body: JSON.stringify({ description: freePrompt }),
-      });
-      const data = (await res.json()) as {
-        enhancedPrompt?: string;
-        credits?: number;
-        notConfigured?: boolean;
-        error?: string;
-      };
-      if (typeof data.credits === 'number') updateCredits(data.credits);
-
-      if (!res.ok) {
-        if (data.notConfigured) {
-          setBetaWaitlistMode(true);
-        }
-        setErrorMsg(data.error || 'Não foi possível melhorar a descrição agora.');
-        return;
-      }
-      if (data.enhancedPrompt) {
-        setEnhancedDraft(data.enhancedPrompt);
-      }
-    } finally {
-      setEnhancing(false);
-    }
+    // Fase 1: melhoria automática desativada — precisa de chave secreta e
+    // chega na Fase 2 via Edge Function. Nenhum crédito é descontado.
+    setErrorMsg('Melhoria automática em breve — estamos ativando os servidores de IA.');
   };
 
   const runGeneration = async (isVariation = false) => {
+    void isVariation;
     setErrorMsg(null);
-    setBetaWaitlistMode(false);
-    setGenerating(true);
-    setLoadingMsgIdx(0);
-
-    try {
-      const payload =
-        mode === 'free'
-          ? {
-              mode: 'free',
-              description: enhancedDraft ?? freePrompt,
-              outfit,
-              environment,
-              pose,
-              lighting,
-              style,
-              aspectRatio,
-              preferredModel,
-              isVariation,
-            }
-          : {
-              mode: 'preset',
-              scenarioId: selectedScenario?.id,
-              description: selectedScenario?.description,
-              outfit,
-              environment,
-              pose,
-              lighting,
-              style,
-              aspectRatio,
-              preferredModel,
-              isVariation,
-            };
-
-      const res = await apiFetch('/api/generate', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const data = (await res.json()) as {
-        generation?: GeneratedResult;
-        credits?: number;
-        notConfigured?: boolean;
-        error?: string;
-      };
-
-      if (typeof data.credits === 'number') {
-        updateCredits(data.credits);
-      }
-
-      if (!res.ok) {
-        void refreshConfig();
-        if (data.notConfigured) {
-          setBetaWaitlistMode(true);
-        } else {
-          const errText = data.error || 'Não foi possível gerar sua foto.';
-          setErrorMsg(errText);
-          addToast({
-            variant: 'error',
-            title: 'Falha ao gerar fotografia',
-            description: errText,
-          });
-        }
-        return;
-      }
-
-      if (data.generation) {
-        setResult(data.generation);
-        void refreshConfig();
-        addToast({
-          variant: 'success',
-          title: isVariation ? 'Variação gerada com sucesso!' : 'Fotografia gerada com sucesso!',
-          description: `${data.generation.scenarioTitle} · Salva em Meu Espaço.`,
-        });
-      }
-    } finally {
-      setGenerating(false);
-    }
+    // Fase 1: geração desativada — precisa de chave secreta e chega na
+    // Fase 2 via Edge Function. Nenhum crédito é descontado; mostra a tela
+    // de lista de espera que já existia para o serviço não configurado.
+    setErrorMsg('Geração em breve — estamos ativando nossa infraestrutura de imagem.');
+    setBetaWaitlistMode(true);
   };
 
   const handleToggleFavorite = async () => {
     if (!result) return;
     setTogglingFavorite(true);
     try {
-      const res = await apiFetch(`/api/generations/${result.id}/favorite`, {
-        method: 'PATCH',
+      const favorite = await toggleFavorite(result.id);
+      setResult((prev) => (prev ? { ...prev, favorite } : prev));
+    } catch (err) {
+      addToast({
+        variant: 'error',
+        title: 'Falha ao favoritar',
+        description: err instanceof Error ? err.message : 'Não foi possível atualizar a foto.',
       });
-      if (res.ok) {
-        const data = (await res.json()) as { favorite: boolean };
-        setResult((prev) => (prev ? { ...prev, favorite: data.favorite } : prev));
-      }
     } finally {
       setTogglingFavorite(false);
     }
@@ -322,13 +227,12 @@ export function CreatePage() {
     e.preventDefault();
     setSubmittingWaitlist(true);
     try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: waitlistEmail, feature: 'generation' }),
-      });
-      const data = (await res.json()) as { message?: string; error?: string };
-      setWaitlistFeedback(data.message || data.error || null);
+      await joinWaitlist(waitlistEmail, 'generation');
+      setWaitlistFeedback('Você entrou na lista de espera prioritária.');
+    } catch (err) {
+      setWaitlistFeedback(
+        err instanceof Error ? err.message : 'Não foi possível entrar na lista de espera.'
+      );
     } finally {
       setSubmittingWaitlist(false);
     }

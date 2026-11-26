@@ -27,7 +27,6 @@
   "exclude": [
     "dist",
     "src/components/ui",
-    "src/lib",
     "src/hooks"
   ]
 }

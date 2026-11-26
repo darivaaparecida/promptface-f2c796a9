@@ -3,13 +3,20 @@ import { Link } from 'react-router-dom';
 import { Upload, Trash2, CheckCircle2, ShieldAlert, ArrowRight, Cpu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import {
+  deleteFace,
+  getVisualProfile,
+  listFaces,
+  saveVisualProfile,
+  uploadFace,
+  type FaceItem,
+} from '../lib/db';
 import type { VisualProfileData } from '../shared/rules';
 import {
   DEFAULT_PREFERRED_AI_MODEL,
   PREFERRED_AI_MODELS,
   getPreferredAiModelOption,
   normalizePreferredAiModel,
-  type PreferredAiModelId,
 } from '../shared/aiModels';
 import {
   DEFAULT_ABSTRACT_AVATARS,
@@ -18,15 +25,6 @@ import {
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ProfileAvatar } from '../components/ProfileAvatar';
-
-interface FaceItem {
-  id: string;
-  filename: string;
-  mimeType: string;
-  faceVerified: boolean;
-  createdAt: string;
-  url: string;
-}
 
 const EMPTY_PROFILE: VisualProfileData = {
   eyeColor: '',
@@ -40,46 +38,8 @@ const EMPTY_PROFILE: VisualProfileData = {
   preferredModel: DEFAULT_PREFERRED_AI_MODEL,
 };
 
-async function fileToResizedDataUrl(file: File): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Formato de imagem inválido'));
-      img.onload = () => {
-        const maxDim = 1280;
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Erro ao processar imagem'));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        const outMime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        const dataUrl = canvas.toDataURL(outMime, 0.9);
-        resolve({ base64: dataUrl, mimeType: outMime });
-      };
-      img.src = String(reader.result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 export function VisualProfilePage() {
-  const { user, apiFetch, getMediaUrl, refreshUser } = useAuth();
+  const { user, getMediaUrl, refreshUser } = useAuth();
   const { addToast } = useToast();
   const [faces, setFaces] = useState<FaceItem[]>([]);
   const [profile, setProfile] = useState<VisualProfileData>(() => ({
@@ -102,23 +62,19 @@ export function VisualProfilePage() {
 
   const loadData = async () => {
     try {
-      const res = await apiFetch('/api/profile');
-      if (res.ok) {
-        const data = (await res.json()) as {
-          profile: VisualProfileData | null;
-          preferredModel?: PreferredAiModelId;
-          faces: FaceItem[];
-        };
-        const resolvedModel = normalizePreferredAiModel(
-          data.profile?.preferredModel ?? data.preferredModel ?? user?.preferredModel
-        );
-        setProfile({
-          ...EMPTY_PROFILE,
-          ...(data.profile || {}),
-          preferredModel: resolvedModel,
-        });
-        setFaces(data.faces || []);
-      }
+      const [{ profile: savedProfile, preferredModel }, loadedFaces] = await Promise.all([
+        getVisualProfile(),
+        listFaces(),
+      ]);
+      const resolvedModel = normalizePreferredAiModel(
+        savedProfile?.preferredModel ?? preferredModel ?? user?.preferredModel
+      );
+      setProfile({
+        ...EMPTY_PROFILE,
+        ...(savedProfile || {}),
+        preferredModel: resolvedModel,
+      });
+      setFaces(loadedFaces);
     } finally {
       setLoading(false);
     }
@@ -145,21 +101,8 @@ export function VisualProfilePage() {
 
     setUploading(true);
     try {
-      const { base64, mimeType } = await fileToResizedDataUrl(file);
-      const res = await apiFetch('/api/faces', {
-        method: 'POST',
-        body: JSON.stringify({
-          imageBase64: base64,
-          mimeType,
-          consentAccepted: true,
-        }),
-      });
-      const data = (await res.json()) as { face?: FaceItem; error?: string };
-      if (!res.ok || !data.face) {
-        setFeedback({ type: 'err', text: data.error || 'Não foi possível enviar esta foto.' });
-        return;
-      }
-      setFaces((prev) => [data.face!, ...prev]);
+      const face = await uploadFace(file, consentAccepted);
+      setFaces((prev) => [face, ...prev]);
       setFeedback({
         type: 'ok',
         text: 'Foto de referência salva com segurança e privada na sua conta.',
@@ -178,11 +121,14 @@ export function VisualProfilePage() {
     setFeedback(null);
     setDeletingFaceId(id);
     try {
-      const res = await apiFetch(`/api/faces/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setFaces((prev) => prev.filter((f) => f.id !== id));
-        setFeedback({ type: 'ok', text: 'Foto removida permanentemente dos nossos servidores.' });
-      }
+      await deleteFace(id);
+      setFaces((prev) => prev.filter((f) => f.id !== id));
+      setFeedback({ type: 'ok', text: 'Foto removida permanentemente dos nossos servidores.' });
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        text: err instanceof Error ? err.message : 'Não foi possível excluir a foto.',
+      });
     } finally {
       setDeletingFaceId(null);
     }
@@ -193,24 +139,23 @@ export function VisualProfilePage() {
     setSavingProfile(true);
     setFeedback(null);
     try {
-      const res = await apiFetch('/api/profile', {
-        method: 'PUT',
-        body: JSON.stringify(profile),
+      await saveVisualProfile(profile);
+      await refreshUser();
+      setFeedback({
+        type: 'ok',
+        text: `Perfil Visual atualizado com sucesso (${selectedModelOption.label}).`,
       });
-      if (res.ok) {
-        await refreshUser();
-        setFeedback({
-          type: 'ok',
-          text: `Perfil Visual atualizado com sucesso (${selectedModelOption.label}).`,
-        });
-        addToast({
-          variant: 'success',
-          title: 'Preferências salvas',
-          description: `Modelo preferido definido para ${selectedModelOption.label}.`,
-        });
-      } else {
-        setFeedback({ type: 'err', text: 'Não foi possível salvar o Perfil Visual.' });
-      }
+      addToast({
+        variant: 'success',
+        title: 'Preferências salvas',
+        description: `Modelo preferido definido para ${selectedModelOption.label}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        text:
+          err instanceof Error ? err.message : 'Não foi possível salvar o Perfil Visual.',
+      });
     } finally {
       setSavingProfile(false);
     }

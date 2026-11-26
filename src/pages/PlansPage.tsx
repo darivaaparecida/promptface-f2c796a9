@@ -23,6 +23,7 @@ import {
   getPlanUnitMetrics,
 } from '../shared/plansCalculator';
 import { useAuth } from '../context/AuthContext';
+import { joinWaitlist } from '../lib/db';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
 
@@ -52,9 +53,11 @@ function parseInitialInterval(param: string | null): BillingInterval {
 }
 
 export function PlansPage() {
-  const { user, config, apiFetch } = useAuth();
+  const { user, config } = useAuth();
   const [searchParams] = useSearchParams();
-  const [plans, setPlans] = useState<PlanDefinition[]>(INITIAL_PLANS);
+  // Fase 1: o catálogo (planos) vem do código do site (src/shared/catalog.ts),
+  // não mais do servidor — não há fetch de catálogo.
+  const plans: PlanDefinition[] = INITIAL_PLANS;
   const [billingInterval, setBillingInterval] = useState<BillingInterval>(() =>
     parseInitialInterval(searchParams.get('ciclo'))
   );
@@ -81,17 +84,6 @@ export function PlansPage() {
       setWaitlistEmail(user.email);
     }
   }, [user?.email, waitlistEmail]);
-
-  useEffect(() => {
-    fetch('/api/catalog')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && Array.isArray(data.plans) && data.plans.length > 0) {
-          setPlans(data.plans);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const baselinePlan = plans.find((p) => p.id === 'essencial') ?? plans[0];
   const essencialPlan = plans.find((p) => p.id === 'essencial') ?? INITIAL_PLANS[0];
@@ -218,34 +210,9 @@ export function PlansPage() {
   const handleSubscribe = async (plan: PlanDefinition) => {
     setStatusMsg(null);
     if (!user) return;
-    if (!config.stripeConfigured) {
-      scrollToWaitlist(plan.name);
-      return;
-    }
-
-    setLoadingPlan(plan.id);
-    try {
-      const res = await apiFetch('/api/checkout', {
-        method: 'POST',
-        body: JSON.stringify({ planId: plan.id, billingInterval }),
-      });
-      const data = (await res.json()) as {
-        url?: string;
-        notConfigured?: boolean;
-        error?: string;
-      };
-      if (data.url) {
-        window.location.assign(data.url);
-        return;
-      }
-      setStatusMsg(
-        data.error || 'Pagamentos em breve — entre na lista de espera para ser avisado.'
-      );
-    } catch {
-      setStatusMsg('Não foi possível iniciar o checkout agora. Tente novamente em instantes.');
-    } finally {
-      setLoadingPlan(null);
-    }
+    // Fase 1: checkout Stripe desativado — precisa de servidor e chega na
+    // Fase 2 via Edge Function. Mesma mensagem que o servidor devolvia.
+    setStatusMsg('Pagamentos em breve — estamos finalizando a ativação das assinaturas.');
   };
 
   const handleWaitlist = async (e: React.FormEvent) => {
@@ -262,27 +229,18 @@ export function PlansPage() {
     setWaitlistSubmitting(true);
     setWaitlistFeedback(null);
     try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, feature: 'payments' }),
+      await joinWaitlist(email, 'payments');
+      setWaitlistFeedback({
+        type: 'success',
+        text: 'Você entrou na lista de espera prioritária.',
       });
-      const data = (await res.json()) as { message?: string; error?: string };
-      if (res.ok) {
-        setWaitlistFeedback({
-          type: 'success',
-          text: data.message || 'E-mail confirmado na lista de espera prioritária.',
-        });
-      } else {
-        setWaitlistFeedback({
-          type: 'error',
-          text: data.error || 'Não foi possível registrar este e-mail agora.',
-        });
-      }
-    } catch {
+    } catch (err) {
       setWaitlistFeedback({
         type: 'error',
-        text: 'Erro de conexão ao registrar na lista de espera.',
+        text:
+          err instanceof Error
+            ? err.message
+            : 'Não foi possível registrar este e-mail agora.',
       });
     } finally {
       setWaitlistSubmitting(false);

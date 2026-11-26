@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Download, History, MoveHorizontal, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { listGenerations } from '../lib/db';
 import { useToast } from '../context/ToastContext';
 import { CREDIT_COSTS } from '../shared/rules';
 import { ImageWithFallback } from '../components/ImageWithFallback';
@@ -40,7 +41,7 @@ const STUDIO_LOADING_MESSAGES = [
 ];
 
 export function StudioPage() {
-  const { user, config, apiFetch, updateCredits, refreshConfig, getMediaUrl } = useAuth();
+  const { user, config, updateCredits, refreshConfig, getMediaUrl } = useAuth();
   const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const requestedId = searchParams.get('foto');
@@ -58,10 +59,8 @@ export function StudioPage() {
   const [betaNotice, setBetaNotice] = useState(false);
 
   useEffect(() => {
-    apiFetch('/api/generations')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const list = (data?.generations || []) as GenerationItem[];
+    listGenerations()
+      .then((list) => {
         setGenerations(list);
         if (list.length > 0) {
           const initial =
@@ -74,6 +73,7 @@ export function StudioPage() {
           setActiveVersionUrl(latest);
         }
       })
+      .catch(() => {})
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedId]);
@@ -105,59 +105,11 @@ export function StudioPage() {
   const handleApplyEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGen || !instruction.trim()) return;
+    // Fase 1: edição no Studio desativada — precisa de chave secreta e chega
+    // na Fase 2 via Edge Function. Nenhum crédito é descontado; mostra o
+    // aviso que já existia para o serviço não configurado.
     setErrorMsg(null);
-    setBetaNotice(false);
-    setEditing(true);
-
-    try {
-      const res = await apiFetch('/api/studio/edit', {
-        method: 'POST',
-        body: JSON.stringify({
-          generationId: selectedGen.id,
-          instruction,
-        }),
-      });
-      const data = (await res.json()) as {
-        generation?: GenerationItem;
-        version?: StudioVersion;
-        credits?: number;
-        notConfigured?: boolean;
-        error?: string;
-      };
-      if (typeof data.credits === 'number') updateCredits(data.credits);
-
-      if (!res.ok) {
-        void refreshConfig();
-        if (data.notConfigured) {
-          setBetaNotice(true);
-        } else {
-          const errText = data.error || 'Não foi possível aplicar a edição.';
-          setErrorMsg(errText);
-          addToast({
-            variant: 'error',
-            title: 'Falha ao editar no Studio',
-            description: errText,
-          });
-        }
-        return;
-      }
-
-      if (data.generation && data.version) {
-        setGenerations((prev) =>
-          prev.map((g) => (g.id === data.generation!.id ? data.generation! : g))
-        );
-        setActiveVersionUrl(data.version.url);
-        setInstruction('');
-        void refreshConfig();
-        addToast({
-          variant: 'success',
-          title: 'Edição no Studio concluída!',
-          description: `Nova versão criada para ${data.generation.scenarioTitle}.`,
-        });
-      }
-    } finally {
-      setEditing(false);
-    }
+    setBetaNotice(true);
   };
 
   if (loading) {

@@ -48,13 +48,13 @@ test('resolveProfileAvatarDisplay returns an abstract default avatar when faces 
 
 test('resolveProfileAvatarDisplay automatically switches to uploaded face photo when present', () => {
   const resolved = resolveProfileAvatarDisplay({
-    faces: [{ id: 'face-1', url: '/api/media/faces/user-1/selfie.jpg' }],
+    faces: [{ id: 'face-1', url: 'https://fbpgsastfracksfvunpd.supabase.co/storage/v1/object/sign/face-references/profile-1/face.jpg?token=abc' }],
     seed: 'user-with-photo@example.com',
-    getMediaUrl: (path) => `${path}?token=abc`,
+    getMediaUrl: (path) => path,
   });
 
   assert.equal(resolved.isDefault, false);
   assert.equal(resolved.avatar, null);
-  assert.equal(resolved.src, '/api/media/faces/user-1/selfie.jpg?token=abc');
+  assert.equal(resolved.src, 'https://fbpgsastfracksfvunpd.supabase.co/storage/v1/object/sign/face-references/profile-1/face.jpg?token=abc');
   assert.equal(resolved.label, 'Foto de referência ativa');
 });

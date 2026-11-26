@@ -2,17 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Wrench, Power } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  adminAdjustCredits,
+  adminCreateNotice,
+  adminDeleteNotice,
+  adminSetFalQuota,
+  adminSetMaintenance,
+  getAdminOverview,
+  type AdminOverview,
+} from '../lib/db';
 import { useToast } from '../context/ToastContext';
-import type { CategoryItem, PlanDefinition, ScenarioItem } from '../shared/catalog';
-import {
-  DEFAULT_MAINTENANCE_CONFIG,
-  type AdminStatsSummary,
-  type MaintenanceConfig,
-} from '../shared/adminStats';
-import {
-  DEFAULT_FAL_FREE_LIMIT,
-  type FalQuotaSummary,
-} from '../shared/providerQuota';
+import type { PlanDefinition, ScenarioItem } from '../shared/catalog';
+import { DEFAULT_MAINTENANCE_CONFIG } from '../shared/adminStats';
+import { DEFAULT_FAL_FREE_LIMIT } from '../shared/providerQuota';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { AdminStatsSection } from '../components/AdminStatsSection';
 
@@ -26,57 +28,8 @@ type AdminTab =
   | 'moderacao'
   | 'manutencao';
 
-interface AdminOverview {
-  metrics: {
-    totalUsers: number;
-    activeSubscriptions: number;
-    canceledSubscriptions: number;
-    mrrBrl: number;
-    totalRevenueBrl: number;
-    totalGenerations: number;
-    generationsToday: number;
-    avgCostUsd: number;
-    estimatedMarginPct: number;
-  };
-  users: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    credits: number;
-    planId: string;
-    subscriptionStatus: string;
-    createdAt?: string;
-  }>;
-  generations: Array<{
-    id: string;
-    scenarioTitle: string;
-    provider: string;
-    model: string;
-    costCredits: number;
-    estimatedCostUsd: number;
-    createdAt: string;
-  }>;
-  categories: CategoryItem[];
-  scenarios: ScenarioItem[];
-  plans: PlanDefinition[];
-  notices: Array<{ id: string; title: string; message: string; active: boolean; createdAt: string }>;
-  moderationLogs: Array<{
-    id: string;
-    userEmail?: string;
-    inputSnippet: string;
-    reason: string;
-    action: string;
-    createdAt: string;
-  }>;
-  waitlistCount: number;
-  maintenance?: MaintenanceConfig;
-  falQuota?: FalQuotaSummary;
-  dailyStats30d?: AdminStatsSummary;
-}
-
 export function AdminPage() {
-  const { apiFetch, refreshConfig } = useAuth();
+  const { refreshConfig } = useAuth();
   const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTabParam = searchParams.get('tab');
@@ -116,20 +69,26 @@ export function AdminPage() {
   const loadAdmin = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/admin/overview');
-      if (res.ok) {
-        const overview = (await res.json()) as AdminOverview;
-        setData(overview);
-        if (overview.maintenance) {
-          setMaintEnabled(overview.maintenance.enabled);
-          setMaintTitle(overview.maintenance.title);
-          setMaintMessage(overview.maintenance.message);
-          setMaintEstimatedReturn(overview.maintenance.estimatedReturn);
-        }
-        if (overview.falQuota) {
-          setFalLimitInput(String(overview.falQuota.limit));
-        }
+      const overview = await getAdminOverview();
+      setData(overview);
+      if (overview.maintenance) {
+        setMaintEnabled(overview.maintenance.enabled);
+        setMaintTitle(overview.maintenance.title);
+        setMaintMessage(overview.maintenance.message);
+        setMaintEstimatedReturn(overview.maintenance.estimatedReturn);
       }
+      if (overview.falQuota) {
+        setFalLimitInput(String(overview.falQuota.limit));
+      }
+    } catch (err) {
+      addToast({
+        title: 'Erro ao carregar o painel',
+        description:
+          err instanceof Error
+            ? err.message
+            : 'Não foi possível carregar o painel de administração.',
+        variant: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -151,87 +110,61 @@ export function AdminPage() {
     const key = `${userId}:${delta}`;
     setPendingCreditKey(key);
     try {
-      const res = await apiFetch(`/api/admin/users/${userId}/credits`, {
-        method: 'POST',
-        body: JSON.stringify({ delta, reason: 'Ajuste manual pelo painel admin' }),
+      await adminAdjustCredits(userId, delta, 'Ajuste manual pelo painel admin');
+      setFeedback('Créditos atualizados.');
+      await loadAdmin();
+    } catch (err) {
+      addToast({
+        title: 'Erro ao ajustar créditos',
+        description:
+          err instanceof Error ? err.message : 'Não foi possível ajustar os créditos.',
+        variant: 'error',
       });
-      if (res.ok) {
-        setFeedback('Créditos atualizados.');
-        await loadAdmin();
-      }
     } finally {
       setPendingCreditKey(null);
     }
   };
 
   const toggleScenarioActive = async (scenario: ScenarioItem) => {
-    setTogglingScenarioId(scenario.id);
-    try {
-      const res = await apiFetch(`/api/admin/scenarios/${scenario.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ active: !scenario.active }),
-      });
-      if (res.ok) {
-        await loadAdmin();
-      }
-    } finally {
-      setTogglingScenarioId(null);
-    }
+    // Fase 1: edição de cenários e planos pelo painel está pausada — o
+    // catálogo agora vem do código do site (src/shared/catalog.ts).
+    setFeedback(
+      'A edição de cenários e planos pelo painel está pausada nesta fase — o catálogo agora vem do código do site.'
+    );
   };
 
   const handleCreateScenario = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCreatingScenario(true);
-    try {
-      const res = await apiFetch('/api/admin/scenarios', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: newScenarioTitle,
-          categoryId: newScenarioCategory,
-          description: newScenarioDesc,
-        }),
-      });
-      if (res.ok) {
-        setNewScenarioTitle('');
-        setNewScenarioDesc('');
-        setFeedback('Novo cenário criado e publicado.');
-        await loadAdmin();
-      }
-    } finally {
-      setCreatingScenario(false);
-    }
+    // Fase 1: edição de cenários e planos pelo painel está pausada — o
+    // catálogo agora vem do código do site (src/shared/catalog.ts).
+    setFeedback(
+      'A edição de cenários e planos pelo painel está pausada nesta fase — o catálogo agora vem do código do site.'
+    );
   };
 
   const updatePlan = async (plan: PlanDefinition, priceBrl: number, creditsMonthly: number, deltaTag: number) => {
-    const key = `${plan.id}:${deltaTag}`;
-    setUpdatingPlanKey(key);
-    try {
-      const res = await apiFetch(`/api/admin/plans/${plan.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ priceBrl, creditsMonthly }),
-      });
-      if (res.ok) {
-        setFeedback(`Plano ${plan.name} atualizado.`);
-        await loadAdmin();
-      }
-    } finally {
-      setUpdatingPlanKey(null);
-    }
+    // Fase 1: edição de cenários e planos pelo painel está pausada — o
+    // catálogo agora vem do código do site (src/shared/catalog.ts).
+    setFeedback(
+      'A edição de cenários e planos pelo painel está pausada nesta fase — o catálogo agora vem do código do site.'
+    );
   };
 
   const handleCreateNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreatingNotice(true);
     try {
-      const res = await apiFetch('/api/admin/notices', {
-        method: 'POST',
-        body: JSON.stringify({ title: newNoticeTitle, message: newNoticeMsg }),
+      await adminCreateNotice(newNoticeTitle, newNoticeMsg);
+      setNewNoticeTitle('');
+      setNewNoticeMsg('');
+      await loadAdmin();
+    } catch (err) {
+      addToast({
+        title: 'Erro ao publicar aviso',
+        description:
+          err instanceof Error ? err.message : 'Não foi possível criar o aviso.',
+        variant: 'error',
       });
-      if (res.ok) {
-        setNewNoticeTitle('');
-        setNewNoticeMsg('');
-        await loadAdmin();
-      }
     } finally {
       setCreatingNotice(false);
     }
@@ -240,8 +173,15 @@ export function AdminPage() {
   const deleteNotice = async (id: string) => {
     setDeletingNoticeId(id);
     try {
-      await apiFetch(`/api/admin/notices/${id}`, { method: 'DELETE' });
+      await adminDeleteNotice(id);
       await loadAdmin();
+    } catch (err) {
+      addToast({
+        title: 'Erro ao remover aviso',
+        description:
+          err instanceof Error ? err.message : 'Não foi possível excluir o aviso.',
+        variant: 'error',
+      });
     } finally {
       setDeletingNoticeId(null);
     }
@@ -251,39 +191,34 @@ export function AdminPage() {
     setSavingMaintenance(true);
     setFeedback(null);
     try {
-      const res = await apiFetch('/api/admin/maintenance', {
-        method: 'PUT',
-        body: JSON.stringify({
-          enabled: nextEnabled,
-          title: maintTitle,
-          message: maintMessage,
-          estimatedReturn: maintEstimatedReturn,
-        }),
+      const maintenance = await adminSetMaintenance({
+        enabled: nextEnabled,
+        title: maintTitle,
+        message: maintMessage,
+        estimatedReturn: maintEstimatedReturn,
       });
-      if (res.ok) {
-        const payload = (await res.json()) as { maintenance: MaintenanceConfig };
-        setMaintEnabled(payload.maintenance.enabled);
-        setMaintTitle(payload.maintenance.title);
-        setMaintMessage(payload.maintenance.message);
-        setMaintEstimatedReturn(payload.maintenance.estimatedReturn);
-        setData((prev) => (prev ? { ...prev, maintenance: payload.maintenance } : prev));
-        await refreshConfig();
-        const statusMsg = payload.maintenance.enabled
-          ? 'Modo de manutenção ativado para os usuários.'
-          : 'Modo de manutenção desativado. Plataforma online para todos.';
-        setFeedback(statusMsg);
-        addToast({
-          title: payload.maintenance.enabled ? 'Manutenção ativada' : 'Manutenção desativada',
-          description: statusMsg,
-          variant: 'success',
-        });
-      } else {
-        addToast({
-          title: 'Erro ao atualizar manutenção',
-          description: 'Tente novamente em alguns segundos.',
-          variant: 'error',
-        });
-      }
+      setMaintEnabled(maintenance.enabled);
+      setMaintTitle(maintenance.title);
+      setMaintMessage(maintenance.message);
+      setMaintEstimatedReturn(maintenance.estimatedReturn);
+      setData((prev) => (prev ? { ...prev, maintenance } : prev));
+      await refreshConfig();
+      const statusMsg = maintenance.enabled
+        ? 'Modo de manutenção ativado para os usuários.'
+        : 'Modo de manutenção desativado. Plataforma online para todos.';
+      setFeedback(statusMsg);
+      addToast({
+        title: maintenance.enabled ? 'Manutenção ativada' : 'Manutenção desativada',
+        description: statusMsg,
+        variant: 'success',
+      });
+    } catch (err) {
+      addToast({
+        title: 'Erro ao atualizar manutenção',
+        description:
+          err instanceof Error ? err.message : 'Tente novamente em alguns segundos.',
+        variant: 'error',
+      });
     } finally {
       setSavingMaintenance(false);
     }
@@ -299,21 +234,22 @@ export function AdminPage() {
     const parsedLimit = Math.max(0, Math.floor(Number(falLimitInput) || 0));
     setSavingFalQuota(true);
     try {
-      const res = await apiFetch('/api/admin/fal-quota', {
-        method: 'PUT',
-        body: JSON.stringify({ falFreeLimit: parsedLimit }),
+      const falQuota = await adminSetFalQuota(parsedLimit, data?.falQuota?.used ?? 0);
+      setData((prev) => (prev ? { ...prev, falQuota } : prev));
+      setFalLimitInput(String(falQuota.limit));
+      await refreshConfig();
+      addToast({
+        title: 'Limite atualizado',
+        description: `Limite de proteção da fal.ai definido para ${falQuota.limit} imagens.`,
+        variant: 'success',
       });
-      if (res.ok) {
-        const payload = (await res.json()) as { falQuota: FalQuotaSummary };
-        setData((prev) => (prev ? { ...prev, falQuota: payload.falQuota } : prev));
-        setFalLimitInput(String(payload.falQuota.limit));
-        await refreshConfig();
-        addToast({
-          title: 'Limite atualizado',
-          description: `Limite de proteção da fal.ai definido para ${payload.falQuota.limit} imagens.`,
-          variant: 'success',
-        });
-      }
+    } catch (err) {
+      addToast({
+        title: 'Erro ao atualizar limite',
+        description:
+          err instanceof Error ? err.message : 'Não foi possível salvar a cota Fal.',
+        variant: 'error',
+      });
     } finally {
       setSavingFalQuota(false);
     }

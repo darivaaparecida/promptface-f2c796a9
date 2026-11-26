@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import {
   ArrowRight,
-  KeyRound,
   Lock,
   Mail,
   ScanFace,
@@ -18,14 +17,15 @@ import { ButtonSpinner } from '../components/ButtonSpinner';
 import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 
-type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'admin-claim';
+type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const initialMode: AuthMode =
     searchParams.get('modo') === 'cadastro' ? 'register' : 'login';
 
-  const { setSession, config, refreshConfig } = useAuth();
+  const { user, signIn, signUp, resetPassword, updatePassword, resendConfirmation, recoveryMode } =
+    useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo =
@@ -35,8 +35,6 @@ export function LoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
-  const [codeHint, setCodeHint] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
@@ -49,39 +47,42 @@ export function LoginPage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  // Usuário logado que cai aqui (ex.: clicou no link de confirmação do
+  // e-mail) vai direto para a criação — exceto no modo de recuperação,
+  // em que ele precisa definir a nova senha primeiro.
+  useEffect(() => {
+    if (user && !recoveryMode) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [user, recoveryMode, navigate, redirectTo]);
+
+  // Link de recuperação clicado: mostra o formulário de nova senha.
+  useEffect(() => {
+    if (recoveryMode) {
+      setMode('reset');
+      setInfoMsg('Defina sua nova senha abaixo.');
+    }
+  }, [recoveryMode]);
+
+  // Chegada pelo link de confirmação de e-mail.
+  useEffect(() => {
+    if (searchParams.get('confirmado') === '1' && !user) {
+      setInfoMsg('E-mail confirmado! Você já pode entrar com sua conta.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password }),
-      });
-      const data = (await res.json()) as {
-        token?: string;
-        user?: any;
-        requiresVerification?: boolean;
-        verificationHint?: string;
-        error?: string;
-      };
-
-      if (data.requiresVerification) {
-        setMode('verify');
-        setCodeHint(data.verificationHint || null);
-        setInfoMsg('Confirme seu e-mail com o código enviado para acessar sua conta.');
+      const { error } = await signIn(email, password);
+      if (error) {
+        setErrorMsg(error);
         return;
       }
-
-      if (!res.ok || !data.token || !data.user) {
-        setErrorMsg(data.error || 'Não foi possível entrar.');
-        return;
-      }
-
-      setSession(data.token, data.user);
       navigate(redirectTo, { replace: true });
     } finally {
       setSubmitting(false);
@@ -94,47 +95,32 @@ export function LoginPage() {
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = (await res.json()) as {
-        requiresVerification?: boolean;
-        verificationHint?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Não foi possível criar a conta.');
+      const { error, confirmationSent } = await signUp(name, email, password);
+      if (error) {
+        setErrorMsg(error);
         return;
       }
-      setCodeHint(data.verificationHint || null);
-      setMode('verify');
-      setInfoMsg('Cadastro realizado! Confirme seu e-mail para liberar seus 10 créditos grátis.');
+      if (confirmationSent) {
+        setMode('verify');
+        setInfoMsg('Cadastro realizado! Confirme seu e-mail para liberar seus 10 créditos grátis.');
+        return;
+      }
+      navigate(redirectTo, { replace: true });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleVerifyEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleResendConfirmation = async () => {
     setErrorMsg(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/verify-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, code }),
-      });
-      const data = (await res.json()) as { token?: string; user?: any; error?: string };
-      if (!res.ok || !data.token || !data.user) {
-        setErrorMsg(data.error || 'Código inválido.');
+      const { error } = await resendConfirmation(email);
+      if (error) {
+        setErrorMsg(error);
         return;
       }
-      setSession(data.token, data.user);
-      navigate(redirectTo, { replace: true });
+      setInfoMsg('Link de confirmação reenviado. Verifique sua caixa de entrada (e o spam).');
     } finally {
       setSubmitting(false);
     }
@@ -145,62 +131,31 @@ export function LoginPage() {
     setErrorMsg(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = (await res.json()) as { resetHint?: string; message?: string };
-      setCodeHint(data.resetHint || null);
-      setMode('reset');
-      setInfoMsg(data.message || 'Informe o código e sua nova senha.');
+      const { error } = await resetPassword(email);
+      if (error) {
+        setErrorMsg(error);
+        return;
+      }
+      setInfoMsg(
+        'Se o e-mail existir, enviamos um link de recuperação. Clique no link para definir uma nova senha.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleReset = async (e: React.FormEvent) => {
+  const handleNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, code, newPassword: password }),
-      });
-      const data = (await res.json()) as { token?: string; user?: any; error?: string };
-      if (!res.ok || !data.token || !data.user) {
-        setErrorMsg(data.error || 'Não foi possível redefinir a senha.');
+      const { error } = await updatePassword(password);
+      if (error) {
+        setErrorMsg(error);
         return;
       }
-      setSession(data.token, data.user);
+      setInfoMsg('Senha redefinida com sucesso!');
       navigate(redirectTo, { replace: true });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleClaimAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/auth/claim-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: name || 'Administrador', email, password }),
-      });
-      const data = (await res.json()) as { token?: string; user?: any; error?: string };
-      if (!res.ok || !data.token || !data.user) {
-        setErrorMsg(data.error || 'Não foi possível configurar o administrador.');
-        return;
-      }
-      setSession(data.token, data.user);
-      await refreshConfig();
-      navigate('/admin', { replace: true });
     } finally {
       setSubmitting(false);
     }
@@ -298,7 +253,6 @@ export function LoginPage() {
                     {mode === 'verify' && 'Confirme seu e-mail'}
                     {mode === 'forgot' && 'Recuperar senha'}
                     {mode === 'reset' && 'Definir nova senha'}
-                    {mode === 'admin-claim' && 'Configurar administrador inicial'}
                   </h1>
                   <p className="mt-2 text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
                     {mode === 'register'
@@ -476,36 +430,33 @@ export function LoginPage() {
                   )}
 
                   {mode === 'verify' && (
-                    <form onSubmit={handleVerifyEmail} className="space-y-4">
-                      {codeHint && (
-                        <div className="rounded-xl border border-slate-300 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-[#08080C] p-3 text-xs dark:text-[#A1A1AA]">
-                          Código de confirmação para teste imediato:{' '}
-                          <strong className="text-slate-950 dark:text-white font-mono-num">{codeHint}</strong>
-                        </div>
-                      )}
-                      <div className="space-y-1.5">
-                        <label htmlFor="verify-code" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                          Código de 6 dígitos enviado para {email}
-                        </label>
-                        <input
-                          id="verify-code"
-                          type="text"
-                          required
-                          value={code}
-                          onChange={(e) => setCode(e.target.value)}
-                          placeholder="000000"
-                          className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 font-mono-num focus:outline-none focus:border-violet-700 dark:bg-[#08080C] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
-                        />
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-violet-600/45 bg-violet-50 text-violet-950 dark:bg-[#7C3AED]/15 dark:border-[#7C3AED]/40 px-4 py-3 text-sm dark:text-white leading-relaxed">
+                        Enviamos um link de confirmação para <strong>{email}</strong>. Clique
+                        no link para ativar sua conta e liberar seus 10 créditos grátis. Não
+                        esqueça de verificar a caixa de spam.
                       </div>
                       <button
-                        type="submit"
+                        type="button"
+                        onClick={handleResendConfirmation}
                         disabled={submitting}
                         className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
                       >
                         {submitting && <ButtonSpinner size="md" />}
-                        <span>{submitting ? 'Confirmando...' : 'Confirmar e entrar'}</span>
+                        <span>{submitting ? 'Enviando...' : 'Reenviar link de confirmação'}</span>
                       </button>
-                    </form>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('login');
+                          setErrorMsg(null);
+                          setInfoMsg(null);
+                        }}
+                        className="w-full text-center text-xs font-medium text-violet-700 hover:text-slate-950 dark:text-[#A855F7] dark:hover:text-white transition-colors"
+                      >
+                        Voltar para o login
+                      </button>
+                    </div>
                   )}
 
                   {mode === 'forgot' && (
@@ -529,32 +480,13 @@ export function LoginPage() {
                         className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
                       >
                         {submitting && <ButtonSpinner size="md" />}
-                        <span>{submitting ? 'Enviando...' : 'Enviar código de recuperação'}</span>
+                        <span>{submitting ? 'Enviando...' : 'Enviar link de recuperação'}</span>
                       </button>
                     </form>
                   )}
 
                   {mode === 'reset' && (
-                    <form onSubmit={handleReset} className="space-y-4">
-                      {codeHint && (
-                        <div className="rounded-xl border border-slate-300 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-[#08080C] p-3 text-xs dark:text-[#A1A1AA]">
-                          Código de recuperação:{' '}
-                          <strong className="text-slate-950 dark:text-white font-mono-num">{codeHint}</strong>
-                        </div>
-                      )}
-                      <div className="space-y-1.5">
-                        <label htmlFor="reset-code" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                          Código recebido
-                        </label>
-                        <input
-                          id="reset-code"
-                          type="text"
-                          required
-                          value={code}
-                          onChange={(e) => setCode(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 font-mono-num dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                        />
-                      </div>
+                    <form onSubmit={handleNewPassword} className="space-y-4">
                       <div className="space-y-1.5">
                         <label htmlFor="reset-pass" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
                           Nova senha
@@ -576,59 +508,6 @@ export function LoginPage() {
                       >
                         {submitting && <ButtonSpinner size="md" />}
                         <span>{submitting ? 'Redefinindo...' : 'Redefinir senha'}</span>
-                      </button>
-                    </form>
-                  )}
-
-                  {mode === 'admin-claim' && (
-                    <form onSubmit={handleClaimAdmin} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <label htmlFor="admin-name" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                          Nome
-                        </label>
-                        <input
-                          id="admin-name"
-                          type="text"
-                          required
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label htmlFor="admin-email" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                          E-mail do administrador
-                        </label>
-                        <input
-                          id="admin-email"
-                          type="email"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label htmlFor="admin-pass" className="block text-xs text-slate-700 dark:text-[#A1A1AA]">
-                          Senha de administrador
-                        </label>
-                        <input
-                          id="admin-pass"
-                          type="password"
-                          required
-                          minLength={6}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
-                      >
-                        {submitting && <ButtonSpinner size="md" />}
-                        <span>{submitting ? 'Configurando...' : 'Definir administrador'}</span>
                       </button>
                     </form>
                   )}
@@ -679,23 +558,6 @@ export function LoginPage() {
               )}
             </div>
 
-            {config.needsAdminClaim && mode !== 'admin-claim' && (
-              <div className="pt-4 border-t border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700 dark:text-[#A1A1AA]">
-                <span>Primeira execução</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('admin-claim');
-                    setErrorMsg(null);
-                    setInfoMsg(null);
-                  }}
-                  className="inline-flex items-center gap-1.5 text-violet-700 hover:text-slate-950 dark:text-[#A855F7] dark:hover:text-white transition-colors"
-                >
-                  <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Configurar admin inicial</span>
-                </button>
-              </div>
-            )}
           </motion.div>
 
           {/* Right Showcase + Plans Summary */}

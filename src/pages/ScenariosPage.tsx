@@ -14,8 +14,8 @@ export function ScenariosPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCat = searchParams.get('categoria') || 'all';
 
-  const [categories, setCategories] = useState<CategoryItem[]>(CATEGORIES);
-  const [scenarios, setScenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
+  const [categories] = useState<CategoryItem[]>(CATEGORIES);
+  const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
   const [selectedCategory, setSelectedCategory] = useState(initialCat);
   const [query, setQuery] = useState('');
 
@@ -23,19 +23,6 @@ export function ScenariosPage() {
     const paramCat = searchParams.get('categoria') || 'all';
     setSelectedCategory(paramCat);
   }, [searchParams]);
-
-  useEffect(() => {
-    fetch('/api/catalog')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data) return;
-        if (Array.isArray(data.categories)) setCategories(data.categories);
-        if (Array.isArray(data.scenarios)) setScenarios(data.scenarios);
-      })
-      .catch(() => {
-        // Keep bundled catalog
-      });
-  }, []);
 
   const filtered = useMemo(
     () => filterScenarios(scenarios, selectedCategory, query),
