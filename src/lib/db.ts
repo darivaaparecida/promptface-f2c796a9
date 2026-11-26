@@ -550,6 +550,84 @@ export async function listFaces(): Promise<FaceItem[]> {
 }
 
 /**
+ * Prepara uma imagem para subir ao Storage sem pesar e sem perder qualidade
+ * visível: reduz para no máximo 1024 px no lado maior e converte para WebP
+ * (qualidade 0.85). Uma foto de celular (4032x3024, 3–6 MB) vira ~100–200 KB
+ * — 90–95% menor — e continua idêntica na tela e como referência para a IA,
+ * que não usa mais que ~1024 px de referência facial. Arquivos já pequenos
+ * (JPEG/WebP até 1024 px e até 400 KB) sobem como estão, sem re-encodar.
+ * Se qualquer passo falhar, devolve o arquivo original: nunca bloqueia o
+ * envio. Exportada para reutilizar no mesmo tratamento das imagens geradas
+ * na Fase 2 (lá, a Edge Function deve guardar a imagem como WebP q85 em vez
+ * de PNG).
+ */
+const MAX_UPLOAD_IMAGE_SIDE_PX = 1024;
+const UPLOAD_IMAGE_WEBP_QUALITY = 0.85;
+const UPLOAD_IMAGE_SMALL_BYTES = 400 * 1024;
+
+async function decodeImageFile(file: File): Promise<ImageBitmap | HTMLImageElement> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      // cai para o <img> abaixo
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('decode'));
+      img.src = url;
+    });
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function prepareImageForUpload(
+  file: File
+): Promise<{ blob: Blob; mimeType: string }> {
+  const fallback = { blob: file as Blob, mimeType: file.type || 'image/jpeg' };
+  try {
+    const source = await decodeImageFile(file);
+    const width = source.width;
+    const height = source.height;
+    const longestSide = Math.max(width, height);
+    const alreadySmall = longestSide <= MAX_UPLOAD_IMAGE_SIDE_PX;
+    const alreadyEfficient =
+      (file.type === 'image/jpeg' || file.type === 'image/webp') &&
+      file.size <= UPLOAD_IMAGE_SMALL_BYTES;
+    if (alreadySmall && alreadyEfficient) {
+      if (source instanceof ImageBitmap) source.close();
+      return fallback;
+    }
+    const scale = alreadySmall ? 1 : MAX_UPLOAD_IMAGE_SIDE_PX / longestSide;
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      if (source instanceof ImageBitmap) source.close();
+      return fallback;
+    }
+    ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
+    if (source instanceof ImageBitmap) source.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/webp', UPLOAD_IMAGE_WEBP_QUALITY)
+    );
+    if (!blob) return fallback;
+    return { blob, mimeType: 'image/webp' };
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * Envia uma foto de referência facial para o bucket privado e cria a linha
  * na tabela. A verificação por IA do rosto (que o servidor fazia) NÃO existe
  * nesta fase — volta na Fase 2, via Edge Function; até lá a foto entra com
@@ -561,17 +639,19 @@ export async function uploadFace(file: File, consentAccepted: boolean): Promise<
       'O consentimento explícito é obrigatório antes do envio da foto facial (LGPD).'
     );
   }
-  const mimeType =
-    file.type === 'image/png' || file.type === 'image/webp' ? file.type : 'image/jpeg';
   if (file.size > MAX_FACE_FILE_BYTES) {
     throw new Error('Envie uma foto válida (máximo 6 MB).');
   }
+  // Reduz + converte para WebP antes de subir: a foto pesa 90–95% menos no
+  // Storage e continua igual no visual e como referência para a IA.
+  const prepared = await prepareImageForUpload(file);
+  const mimeType = prepared.mimeType;
   const profileId = await getMyProfileId();
   const supabase = getSupabase();
   const storagePath = `${profileId}/${crypto.randomUUID()}.${extensionForMime(mimeType)}`;
   const { error: uploadError } = await supabase.storage
     .from(FACE_REFERENCES_BUCKET)
-    .upload(storagePath, file, { contentType: mimeType, upsert: false });
+    .upload(storagePath, prepared.blob, { contentType: mimeType, upsert: false });
   if (uploadError) throw toError(uploadError, 'Não foi possível enviar sua foto.');
   const { data, error } = await supabase
     .from('face_references')
