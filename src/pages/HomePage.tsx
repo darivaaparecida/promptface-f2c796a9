@@ -14,6 +14,7 @@ import {
 } from '../shared/catalog';
 import { BeforeAfterShowcase } from '../components/BeforeAfterSlider';
 import { ImageWithFallback } from '../components/ImageWithFallback';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 import { useAuth } from '../context/AuthContext';
 
 export function HomePage() {
@@ -23,6 +24,7 @@ export function HomePage() {
   const [plans, setPlans] = useState<PlanDefinition[]>(INITIAL_PLANS);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
   const [waitlistStatus, setWaitlistStatus] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,18 +45,25 @@ export function HomePage() {
 
   const handleWaitlist = async (e: React.FormEvent) => {
     e.preventDefault();
+    setWaitlistSubmitting(true);
     setWaitlistStatus(null);
-    const res = await fetch('/api/waitlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: waitlistEmail, feature: 'payments' }),
-    });
-    const data = (await res.json()) as { message?: string; error?: string };
-    if (res.ok) {
-      setWaitlistStatus(data.message || 'Cadastro confirmado na lista de espera.');
-      setWaitlistEmail('');
-    } else {
-      setWaitlistStatus(data.error || 'Verifique o e-mail informado.');
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: waitlistEmail, feature: 'payments' }),
+      });
+      const data = (await res.json()) as { message?: string; error?: string };
+      if (res.ok) {
+        setWaitlistStatus(data.message || 'Cadastro confirmado na lista de espera.');
+        setWaitlistEmail('');
+      } else {
+        setWaitlistStatus(data.error || 'Verifique o e-mail informado.');
+      }
+    } catch {
+      setWaitlistStatus('Não foi possível registrar seu e-mail agora.');
+    } finally {
+      setWaitlistSubmitting(false);
     }
   };
 
@@ -400,9 +409,11 @@ export function HomePage() {
               />
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 hover:bg-violet-100 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 transition-colors whitespace-nowrap"
+                disabled={waitlistSubmitting}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 hover:bg-violet-100 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-60 transition-colors whitespace-nowrap"
               >
-                Avisar-me
+                {waitlistSubmitting && <ButtonSpinner size="sm" />}
+                <span>{waitlistSubmitting ? 'Enviando...' : 'Avisar-me'}</span>
               </button>
             </form>
             {waitlistStatus && <p className="text-xs text-violet-700 dark:text-[#8B5CF6]">{waitlistStatus}</p>}

@@ -37,7 +37,7 @@ export function Navbar() {
           aria-label="PromptFace — Página inicial"
           className="inline-flex items-center whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6] rounded-lg"
         >
-          <BrandLogo size="md" />
+          <BrandLogo size="md" animateEntrance />
         </Link>
 
         {/* Zone 2: Concise single-line navigation links */}

@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { CREDIT_COSTS } from '../shared/rules';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ImageCompareSlider } from '../components/BeforeAfterSlider';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 
 interface StudioVersion {
   id: string;
@@ -390,11 +391,14 @@ export function StudioPage() {
               <button
                 type="submit"
                 disabled={editing || !instruction.trim() || (user?.credits ?? 0) < CREDIT_COSTS.studio_edit}
-                className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-45"
+                className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-45"
               >
-                {editing
-                  ? 'Editando...'
-                  : `Aplicar edição (${CREDIT_COSTS.studio_edit} créditos)`}
+                {editing && <ButtonSpinner size="sm" />}
+                <span>
+                  {editing
+                    ? 'Editando...'
+                    : `Aplicar edição (${CREDIT_COSTS.studio_edit} créditos)`}
+                </span>
               </button>
             </form>
           </div>

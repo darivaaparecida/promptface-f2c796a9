@@ -1,32 +1,248 @@
 {
   "users": [
     {
-      "id": "3bc4b59f-d443-4c99-ae40-9c40af053119",
-      "name": "teste",
-      "email": "teste@teste.com",
-      "passwordHash": "a8eb9f64795ab310035037890ec2fae5:09c8df0c7795016d036777a65a1e4896df510778825a4bc0ff782a4549fcf146a41830494abb56f56fef99369bd92ed6e38e9745ed352ec0993f79b9d057eec8",
+      "id": "user-teste-admin",
+      "name": "Conta Teste Admin",
+      "email": "teste@promptface.com.br",
+      "passwordHash": "046d6de3c7c2b4d392e346a71506e6db:2960173c567768aca26b38d03d131fdd077e183bfc0b9838add63b5b30b8be155e1714fd1642e044702dda2f488fe4867a56d0c8b5d2431f2646da6960bf97e1",
+      "role": "admin",
+      "emailVerified": true,
+      "credits": 180,
+      "planId": "pro",
+      "subscriptionStatus": "active",
+      "preferredModel": "auto",
+      "createdAt": "2026-11-23T12:04:26.353Z"
+    },
+    {
+      "id": "5ac06b58-75f9-4d63-8e7b-57277114b8b3",
+      "name": "Lucas Verificador",
+      "email": "avatar.verify.1795696377147@example.com",
+      "passwordHash": "696a85e18e3e76559fee99b088d9b93c:9caf827a1c78599ce060dd65ac0a1b2d7bf3f2d1b0ebbb584b009170b7ee085ab202f25c9e96f391065ad08c52b9219432fa1e753de944b5cb41450faba9b82d",
+      "role": "user",
+      "emailVerified": false,
+      "verificationCode": "916340",
+      "credits": 10,
+      "planId": "free_trial",
+      "subscriptionStatus": "inactive",
+      "createdAt": "2026-11-26T12:32:57.492Z"
+    },
+    {
+      "id": "3de0ebfd-3d8d-468e-808a-b1bb54231653",
+      "name": "Lucas Verificador",
+      "email": "avatar.verify.1795696396661@example.com",
+      "passwordHash": "557bbb69c415358e6fa01f46ce4b14df:9f8c76fe9403edb9bb13c5fdcb285b0c919b5b3624ab3fbd74f791dc286e99ff57e99719b891668ea2afc8238472fa8e537ef3bd6942b4e18c2b0afee6250e5d",
       "role": "user",
       "emailVerified": true,
       "credits": 10,
       "planId": "free_trial",
       "subscriptionStatus": "inactive",
-      "createdAt": "2026-11-26T00:54:16.990Z"
+      "createdAt": "2026-11-26T12:33:17.059Z"
+    },
+    {
+      "id": "087c141c-bda8-4c1a-9379-787ac40d9ccc",
+      "name": "Lucas Verificador",
+      "email": "avatar.verify.1795696419942@example.com",
+      "passwordHash": "f353f42286121378278b36188295f26d:034a0a913bb5a4e5abd6c496f68a39ad7fe8645c42ee4936938b0a1701716a765ae4a01521ce6ad6abd178ffcd765ae87ac8210522b65a95312a3290d4cff226",
+      "role": "user",
+      "emailVerified": true,
+      "credits": 10,
+      "planId": "free_trial",
+      "subscriptionStatus": "inactive",
+      "createdAt": "2026-11-26T12:33:41.110Z",
+      "preferredModel": "auto"
+    },
+    {
+      "id": "008f7979-ec66-4b12-9fb1-b16a761a4690",
+      "name": "Ana Verificadora",
+      "email": "avatar.verify2.1795696496808@example.com",
+      "passwordHash": "8eb2b30cea231c359cf4d3a9e4520728:2227a3e146370e39de0879f2de3a4c98869036ee82a8715eea26c4433e45bb14bba78dca320d31fc255810305cab5fe50c42f78dc5c039eb6cc55c2ea4129847",
+      "role": "user",
+      "emailVerified": true,
+      "credits": 10,
+      "planId": "free_trial",
+      "subscriptionStatus": "inactive",
+      "createdAt": "2026-11-26T12:34:57.016Z"
     }
   ],
-  "visualProfiles": {},
-  "faceReferences": [],
-  "generations": [],
-  "folders": [],
+  "visualProfiles": {
+    "user-teste-admin": {
+      "eyeColor": "Castanhos escuros",
+      "hairColorStyle": "Castanho curto moderno",
+      "hairType": "Liso / ondulado",
+      "beardMustache": "Barba curta aparada",
+      "skinTone": "Oliva",
+      "facialFeatures": "Óculos de grau discretos",
+      "heightBodyType": "1,78m, porte atlético",
+      "otherCharacteristics": "",
+      "preferredModel": "auto",
+      "updatedAt": "2026-11-23T12:04:26.353Z"
+    },
+    "087c141c-bda8-4c1a-9379-787ac40d9ccc": {
+      "eyeColor": "",
+      "hairColorStyle": "",
+      "hairType": "",
+      "beardMustache": "",
+      "skinTone": "",
+      "facialFeatures": "",
+      "heightBodyType": "",
+      "otherCharacteristics": "",
+      "preferredModel": "auto",
+      "updatedAt": "2026-11-26T12:33:52.709Z"
+    }
+  },
+  "faceReferences": [
+    {
+      "id": "face-teste-1",
+      "userId": "user-teste-admin",
+      "filename": "teste-face-ref.jpg",
+      "mimeType": "image/jpeg",
+      "consentAccepted": true,
+      "consentTimestamp": "2026-11-23T12:04:26.353Z",
+      "faceVerified": true,
+      "createdAt": "2026-11-23T12:04:26.353Z"
+    }
+  ],
+  "generations": [
+    {
+      "id": "gen-teste-studio-1",
+      "userId": "user-teste-admin",
+      "mode": "preset",
+      "scenarioId": "ceo-escritorio-panoramico",
+      "scenarioTitle": "Executivo em Escritório Panorâmico",
+      "categoryId": "corporativo",
+      "categoryName": "Corporativo & LinkedIn",
+      "promptUsed": "Retrato corporativo em escritório moderno panorâmico com terno sob medida e iluminação natural de janela.",
+      "aspectRatio": "3:4",
+      "filename": "teste-studio-office.jpg",
+      "mimeType": "image/jpeg",
+      "costCredits": 10,
+      "estimatedCostUsd": 0.04,
+      "status": "completed",
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite-image",
+      "favorite": true,
+      "folderId": "folder-teste-studio",
+      "tags": [
+        "Corporativo",
+        "Retrato"
+      ],
+      "synthIdMarked": true,
+      "versions": [
+        {
+          "id": "ver-teste-studio-1",
+          "instruction": "Transformar o ambiente em um salão clássico anos 1920 com iluminação quente e terno risca de giz",
+          "filename": "teste-studio-1920s-v1.jpg",
+          "mimeType": "image/jpeg",
+          "createdAt": "2026-11-26T11:04:26.353Z"
+        }
+      ],
+      "createdAt": "2026-11-26T10:04:26.353Z"
+    },
+    {
+      "id": "gen-teste-gallery-2",
+      "userId": "user-teste-admin",
+      "mode": "free",
+      "scenarioTitle": "Editorial em Dubai ao Entardecer",
+      "categoryId": "carros",
+      "categoryName": "Carros & Esportes",
+      "promptUsed": "Fotografia lifestyle ao entardecer em Dubai com iluminação dourada cinematográfica e supercarro ao fundo.",
+      "aspectRatio": "3:4",
+      "filename": "teste-dubai-lambo.jpg",
+      "mimeType": "image/jpeg",
+      "costCredits": 10,
+      "estimatedCostUsd": 0.06,
+      "status": "completed",
+      "provider": "gemini",
+      "model": "gemini-nano-banana-2.1",
+      "favorite": false,
+      "folderId": "folder-teste-studio",
+      "tags": [
+        "Editorial",
+        "Viagem"
+      ],
+      "synthIdMarked": true,
+      "versions": [],
+      "createdAt": "2026-11-26T11:34:26.353Z"
+    }
+  ],
+  "folders": [
+    {
+      "id": "folder-teste-studio",
+      "userId": "user-teste-admin",
+      "name": "Studio & Favoritas",
+      "createdAt": "2026-11-23T12:04:26.353Z"
+    }
+  ],
   "creditLedger": [
     {
-      "id": "3056112a-fd8e-4257-b4c6-c79d94bb84e3",
-      "userId": "3bc4b59f-d443-4c99-ae40-9c40af053119",
+      "id": "6203070c-8e1e-4fbd-b1eb-6ed902e34592",
+      "userId": "008f7979-ec66-4b12-9fb1-b16a761a4690",
       "type": "signup_bonus",
       "operation": "signup",
       "amount": 10,
       "balanceAfter": 10,
       "description": "Bônus de boas-vindas (10 créditos = 1 foto grátis)",
-      "createdAt": "2026-11-26T00:54:16.990Z"
+      "createdAt": "2026-11-26T12:34:57.016Z"
+    },
+    {
+      "id": "f658e3dd-4e24-40db-ab4a-930a92b508e1",
+      "userId": "087c141c-bda8-4c1a-9379-787ac40d9ccc",
+      "type": "signup_bonus",
+      "operation": "signup",
+      "amount": 10,
+      "balanceAfter": 10,
+      "description": "Bônus de boas-vindas (10 créditos = 1 foto grátis)",
+      "createdAt": "2026-11-26T12:33:41.110Z"
+    },
+    {
+      "id": "0f0eba9e-eacb-4b33-bd1e-d20291fa11be",
+      "userId": "3de0ebfd-3d8d-468e-808a-b1bb54231653",
+      "type": "signup_bonus",
+      "operation": "signup",
+      "amount": 10,
+      "balanceAfter": 10,
+      "description": "Bônus de boas-vindas (10 créditos = 1 foto grátis)",
+      "createdAt": "2026-11-26T12:33:17.059Z"
+    },
+    {
+      "id": "4d847bd6-f50b-474b-ba8c-226d9e462797",
+      "userId": "5ac06b58-75f9-4d63-8e7b-57277114b8b3",
+      "type": "signup_bonus",
+      "operation": "signup",
+      "amount": 10,
+      "balanceAfter": 10,
+      "description": "Bônus de boas-vindas (10 créditos = 1 foto grátis)",
+      "createdAt": "2026-11-26T12:32:57.492Z"
+    },
+    {
+      "id": "led-teste-4",
+      "userId": "user-teste-admin",
+      "type": "reserve",
+      "operation": "studio_edit",
+      "amount": -10,
+      "balanceAfter": 180,
+      "description": "Edição no Studio: Transformar o ambiente em salão clássico anos 1920",
+      "createdAt": "2026-11-26T11:04:26.353Z"
+    },
+    {
+      "id": "led-teste-3",
+      "userId": "user-teste-admin",
+      "type": "reserve",
+      "operation": "generate",
+      "amount": -10,
+      "balanceAfter": 190,
+      "description": "Geração: Executivo em Escritório Panorâmico",
+      "createdAt": "2026-11-26T10:04:26.353Z"
+    },
+    {
+      "id": "led-teste-2",
+      "userId": "user-teste-admin",
+      "type": "subscription_grant",
+      "operation": "plan_pro",
+      "amount": 200,
+      "balanceAfter": 200,
+      "description": "Créditos mensais do Plano PRO (conta de teste)",
+      "createdAt": "2026-11-23T12:04:26.353Z"
     }
   ],
   "payments": [],
@@ -37,17 +253,10 @@
       "title": "Novos cenários em alta resolução",
       "message": "Explore os 84 cenários prontos divididos em 14 categorias ou crie livremente com melhoria de descrição.",
       "active": true,
-      "createdAt": "2026-11-25T23:51:04.195Z"
+      "createdAt": "2026-11-26T12:04:26.456Z"
     }
   ],
-  "waitlist": [
-    {
-      "id": "6e88ad30-bc01-47af-87d9-657f36f36a71",
-      "email": "teste.planos@promptface.local",
-      "feature": "payments",
-      "createdAt": "2026-11-26T00:07:53.162Z"
-    }
-  ],
+  "waitlist": [],
   "categories": [
     {
       "id": "luxo",

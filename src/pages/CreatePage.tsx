@@ -27,7 +27,10 @@ import {
 } from '../shared/aiModels';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 import { ImageWithFallback } from '../components/ImageWithFallback';
+import { ProfileAvatar } from '../components/ProfileAvatar';
 
 interface FaceSummary {
   id: string;
@@ -90,6 +93,8 @@ export function CreatePage() {
 
   // Generation flow
   const [generating, setGenerating] = useState(false);
+  const [togglingFavorite, setTogglingFavorite] = useState(false);
+  const [submittingWaitlist, setSubmittingWaitlist] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [betaWaitlistMode, setBetaWaitlistMode] = useState(false);
@@ -277,12 +282,17 @@ export function CreatePage() {
 
   const handleToggleFavorite = async () => {
     if (!result) return;
-    const res = await apiFetch(`/api/generations/${result.id}/favorite`, {
-      method: 'PATCH',
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { favorite: boolean };
-      setResult((prev) => (prev ? { ...prev, favorite: data.favorite } : prev));
+    setTogglingFavorite(true);
+    try {
+      const res = await apiFetch(`/api/generations/${result.id}/favorite`, {
+        method: 'PATCH',
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { favorite: boolean };
+        setResult((prev) => (prev ? { ...prev, favorite: data.favorite } : prev));
+      }
+    } finally {
+      setTogglingFavorite(false);
     }
   };
 
@@ -308,17 +318,27 @@ export function CreatePage() {
 
   const handleBetaWaitlist = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('/api/waitlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: waitlistEmail, feature: 'generation' }),
-    });
-    const data = (await res.json()) as { message?: string; error?: string };
-    setWaitlistFeedback(data.message || data.error || null);
+    setSubmittingWaitlist(true);
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: waitlistEmail, feature: 'generation' }),
+      });
+      const data = (await res.json()) as { message?: string; error?: string };
+      setWaitlistFeedback(data.message || data.error || null);
+    } finally {
+      setSubmittingWaitlist(false);
+    }
   };
 
   const hasFaces = faces.length > 0;
   const hasEnoughCredits = (user?.credits ?? 0) >= CREDIT_COSTS.generate;
+  const avatarDisplay = resolveProfileAvatarDisplay({
+    faces,
+    seed: user?.id || user?.email,
+    getMediaUrl,
+  });
 
   // RESULT SCREEN
   if (result) {
@@ -374,44 +394,59 @@ export function CreatePage() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
+                  disabled={generating}
                   onClick={() => {
                     setResult(null);
                     void runGeneration(false);
                   }}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-50"
                 >
-                  <RefreshCw className="w-4 h-4" aria-hidden="true" />
-                  Gerar novamente
+                  {generating ? (
+                    <ButtonSpinner size="md" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  <span>{generating ? 'Gerando...' : 'Gerar novamente'}</span>
                 </button>
 
                 <button
                   type="button"
+                  disabled={generating}
                   onClick={() => {
                     setResult(null);
                     void runGeneration(true);
                   }}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4" aria-hidden="true" />
-                  Criar variações
+                  {generating ? (
+                    <ButtonSpinner size="md" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  <span>{generating ? 'Gerando...' : 'Criar variações'}</span>
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
+                  disabled={togglingFavorite}
                   onClick={handleToggleFavorite}
-                  className={`inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-xs font-medium transition-colors ${
+                  className={`inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-xs font-medium transition-colors disabled:opacity-60 ${
                     result.favorite
                       ? 'border-pink-600 bg-pink-50 text-pink-950 dark:border-[#EC4899] dark:bg-[#EC4899]/15 dark:text-white'
                       : 'border-slate-300 text-slate-900 hover:bg-slate-100 dark:border-white/15 dark:text-white dark:hover:bg-white/5'
                   }`}
                 >
-                  <Heart
-                    className={`w-4 h-4 ${result.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''}`}
-                    aria-hidden="true"
-                  />
-                  {result.favorite ? 'Favoritada' : 'Favoritos'}
+                  {togglingFavorite ? (
+                    <ButtonSpinner size="md" />
+                  ) : (
+                    <Heart
+                      className={`w-4 h-4 ${result.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''}`}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span>{result.favorite ? 'Favoritada' : 'Favoritos'}</span>
                 </button>
 
                 <Link
@@ -471,13 +506,21 @@ export function CreatePage() {
           aria-label="Status do Perfil Visual"
           className="rounded-2xl border border-violet-600 bg-white dark:border-[#7C3AED] dark:bg-[#17171F] p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm dark:shadow-none"
         >
-          <div className="space-y-1">
-            <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
-              Você ainda não enviou seu rosto — enviar agora
-            </h2>
-            <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
-              Para gerar fotografias preservando sua identidade facial, envie pelo menos 1 foto do seu rosto no Perfil Visual.
-            </p>
+          <div className="flex items-start sm:items-center gap-4">
+            <ProfileAvatar
+              faces={faces}
+              seed={user?.id || user?.email}
+              getMediaUrl={getMediaUrl}
+              size="md"
+            />
+            <div className="space-y-1">
+              <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+                Você ainda não enviou seu rosto — enviar agora
+              </h2>
+              <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
+                {avatarDisplay.label} está ativo no seu perfil. Para gerar fotografias preservando sua identidade facial, envie pelo menos 1 foto no Perfil Visual.
+              </p>
+            </div>
           </div>
           <Link
             to="/perfil-visual"
@@ -488,11 +531,19 @@ export function CreatePage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] px-5 py-4 flex flex-wrap items-center justify-between gap-4 shadow-sm dark:shadow-none">
-          <div className="flex items-center gap-3">
-            <UserCheck className="w-5 h-5 text-violet-700 dark:text-[#8B5CF6] shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-3.5">
+            <ProfileAvatar
+              faces={faces}
+              seed={user?.id || user?.email}
+              getMediaUrl={getMediaUrl}
+              size="sm"
+            />
             <div>
-              <p className="text-sm font-medium text-slate-950 dark:text-white">
-                Perfil Visual ativo ({faces.length} {faces.length === 1 ? 'foto de referência' : 'fotos de referência'})
+              <p className="text-sm font-medium text-slate-950 dark:text-white flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6] shrink-0" aria-hidden="true" />
+                <span>
+                  Perfil Visual ativo ({faces.length} {faces.length === 1 ? 'foto de referência' : 'fotos de referência'})
+                </span>
               </p>
               <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
                 Suas referências privadas serão usadas para preservar seu rosto nesta criação.
@@ -593,9 +644,11 @@ export function CreatePage() {
             />
             <button
               type="submit"
-              className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+              disabled={submittingWaitlist}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white disabled:opacity-60"
             >
-              Entrar na lista
+              {submittingWaitlist && <ButtonSpinner size="sm" />}
+              <span>{submittingWaitlist ? 'Enviando...' : 'Entrar na lista'}</span>
             </button>
           </form>
           {waitlistFeedback && <p className="text-xs text-violet-700 dark:text-[#8B5CF6]">{waitlistFeedback}</p>}
@@ -671,10 +724,16 @@ export function CreatePage() {
                     onClick={handleEnhanceDescription}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-50"
                   >
-                    <Wand2 className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
-                    {enhancing
-                      ? 'Melhorando...'
-                      : `Melhorar minha descrição (${CREDIT_COSTS.enhance_prompt} crédito)`}
+                    {enhancing ? (
+                      <ButtonSpinner size="md" className="text-violet-700 dark:text-[#8B5CF6]" />
+                    ) : (
+                      <Wand2 className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
+                    )}
+                    <span>
+                      {enhancing
+                        ? 'Melhorando...'
+                        : `Melhorar minha descrição (${CREDIT_COSTS.enhance_prompt} crédito)`}
+                    </span>
                   </button>
                   <span className="text-xs text-slate-700 dark:text-[#A1A1AA]">
                     Reescreve com detalhes fotográficos para você aprovar antes de gerar.
@@ -879,9 +938,14 @@ export function CreatePage() {
               type="button"
               disabled={!hasFaces || !hasEnoughCredits || generating}
               onClick={() => runGeneration(false)}
-              className="w-full py-4 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
+              className="w-full inline-flex items-center justify-center gap-2 py-4 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
             >
-              Confirmar e gerar foto ({CREDIT_COSTS.generate} créditos)
+              {generating && <ButtonSpinner size="md" />}
+              <span>
+                {generating
+                  ? 'Gerando fotografia...'
+                  : `Confirmar e gerar foto (${CREDIT_COSTS.generate} créditos)`}
+              </span>
             </button>
 
             <p className="text-[11px] text-slate-700 dark:text-[#A1A1AA] leading-relaxed">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { CategoryItem, PlanDefinition, ScenarioItem } from '../shared/catalog';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 
 type AdminTab = 'metricas' | 'usuarios' | 'cenarios' | 'planos' | 'geracoes' | 'avisos' | 'moderacao';
 
@@ -56,12 +57,18 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Forms
+  // Forms & action pending states
   const [newScenarioTitle, setNewScenarioTitle] = useState('');
   const [newScenarioCategory, setNewScenarioCategory] = useState('luxo');
   const [newScenarioDesc, setNewScenarioDesc] = useState('');
   const [newNoticeTitle, setNewNoticeTitle] = useState('');
   const [newNoticeMsg, setNewNoticeMsg] = useState('');
+  const [pendingCreditKey, setPendingCreditKey] = useState<string | null>(null);
+  const [creatingScenario, setCreatingScenario] = useState(false);
+  const [togglingScenarioId, setTogglingScenarioId] = useState<string | null>(null);
+  const [updatingPlanKey, setUpdatingPlanKey] = useState<string | null>(null);
+  const [creatingNotice, setCreatingNotice] = useState(false);
+  const [deletingNoticeId, setDeletingNoticeId] = useState<string | null>(null);
 
   const loadAdmin = async () => {
     setLoading(true);
@@ -81,71 +88,103 @@ export function AdminPage() {
   }, []);
 
   const adjustCredits = async (userId: string, delta: number) => {
-    const res = await apiFetch(`/api/admin/users/${userId}/credits`, {
-      method: 'POST',
-      body: JSON.stringify({ delta, reason: 'Ajuste manual pelo painel admin' }),
-    });
-    if (res.ok) {
-      setFeedback('Créditos atualizados.');
-      await loadAdmin();
+    const key = `${userId}:${delta}`;
+    setPendingCreditKey(key);
+    try {
+      const res = await apiFetch(`/api/admin/users/${userId}/credits`, {
+        method: 'POST',
+        body: JSON.stringify({ delta, reason: 'Ajuste manual pelo painel admin' }),
+      });
+      if (res.ok) {
+        setFeedback('Créditos atualizados.');
+        await loadAdmin();
+      }
+    } finally {
+      setPendingCreditKey(null);
     }
   };
 
   const toggleScenarioActive = async (scenario: ScenarioItem) => {
-    const res = await apiFetch(`/api/admin/scenarios/${scenario.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ active: !scenario.active }),
-    });
-    if (res.ok) {
-      await loadAdmin();
+    setTogglingScenarioId(scenario.id);
+    try {
+      const res = await apiFetch(`/api/admin/scenarios/${scenario.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ active: !scenario.active }),
+      });
+      if (res.ok) {
+        await loadAdmin();
+      }
+    } finally {
+      setTogglingScenarioId(null);
     }
   };
 
   const handleCreateScenario = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await apiFetch('/api/admin/scenarios', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: newScenarioTitle,
-        categoryId: newScenarioCategory,
-        description: newScenarioDesc,
-      }),
-    });
-    if (res.ok) {
-      setNewScenarioTitle('');
-      setNewScenarioDesc('');
-      setFeedback('Novo cenário criado e publicado.');
-      await loadAdmin();
+    setCreatingScenario(true);
+    try {
+      const res = await apiFetch('/api/admin/scenarios', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newScenarioTitle,
+          categoryId: newScenarioCategory,
+          description: newScenarioDesc,
+        }),
+      });
+      if (res.ok) {
+        setNewScenarioTitle('');
+        setNewScenarioDesc('');
+        setFeedback('Novo cenário criado e publicado.');
+        await loadAdmin();
+      }
+    } finally {
+      setCreatingScenario(false);
     }
   };
 
-  const updatePlan = async (plan: PlanDefinition, priceBrl: number, creditsMonthly: number) => {
-    const res = await apiFetch(`/api/admin/plans/${plan.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ priceBrl, creditsMonthly }),
-    });
-    if (res.ok) {
-      setFeedback(`Plano ${plan.name} atualizado.`);
-      await loadAdmin();
+  const updatePlan = async (plan: PlanDefinition, priceBrl: number, creditsMonthly: number, deltaTag: number) => {
+    const key = `${plan.id}:${deltaTag}`;
+    setUpdatingPlanKey(key);
+    try {
+      const res = await apiFetch(`/api/admin/plans/${plan.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ priceBrl, creditsMonthly }),
+      });
+      if (res.ok) {
+        setFeedback(`Plano ${plan.name} atualizado.`);
+        await loadAdmin();
+      }
+    } finally {
+      setUpdatingPlanKey(null);
     }
   };
 
   const handleCreateNotice = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await apiFetch('/api/admin/notices', {
-      method: 'POST',
-      body: JSON.stringify({ title: newNoticeTitle, message: newNoticeMsg }),
-    });
-    if (res.ok) {
-      setNewNoticeTitle('');
-      setNewNoticeMsg('');
-      await loadAdmin();
+    setCreatingNotice(true);
+    try {
+      const res = await apiFetch('/api/admin/notices', {
+        method: 'POST',
+        body: JSON.stringify({ title: newNoticeTitle, message: newNoticeMsg }),
+      });
+      if (res.ok) {
+        setNewNoticeTitle('');
+        setNewNoticeMsg('');
+        await loadAdmin();
+      }
+    } finally {
+      setCreatingNotice(false);
     }
   };
 
   const deleteNotice = async (id: string) => {
-    await apiFetch(`/api/admin/notices/${id}`, { method: 'DELETE' });
-    await loadAdmin();
+    setDeletingNoticeId(id);
+    try {
+      await apiFetch(`/api/admin/notices/${id}`, { method: 'DELETE' });
+      await loadAdmin();
+    } finally {
+      setDeletingNoticeId(null);
+    }
   };
 
   if (loading || !data) {
@@ -247,17 +286,21 @@ export function AdminPage() {
                   <td className="py-3 px-4 text-right space-x-2">
                     <button
                       type="button"
+                      disabled={pendingCreditKey === `${u.id}:10`}
                       onClick={() => adjustCredits(u.id, 10)}
-                      className="px-2.5 py-1 rounded bg-[#7C3AED] text-xs text-white"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#7C3AED] text-xs text-white disabled:opacity-60"
                     >
-                      +10
+                      {pendingCreditKey === `${u.id}:10` && <ButtonSpinner size="xs" />}
+                      <span>+10</span>
                     </button>
                     <button
                       type="button"
+                      disabled={pendingCreditKey === `${u.id}:-10`}
                       onClick={() => adjustCredits(u.id, -10)}
-                      className="px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white disabled:opacity-60"
                     >
-                      -10
+                      {pendingCreditKey === `${u.id}:-10` && <ButtonSpinner size="xs" />}
+                      <span>-10</span>
                     </button>
                   </td>
                 </tr>
@@ -311,9 +354,11 @@ export function AdminPage() {
             </div>
             <button
               type="submit"
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+              disabled={creatingScenario}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white disabled:opacity-60"
             >
-              Adicionar cenário
+              {creatingScenario && <ButtonSpinner size="sm" />}
+              <span>{creatingScenario ? 'Adicionando...' : 'Adicionar cenário'}</span>
             </button>
           </form>
 
@@ -338,10 +383,12 @@ export function AdminPage() {
                     <td className="py-2.5 px-4 text-right">
                       <button
                         type="button"
+                        disabled={togglingScenarioId === s.id}
                         onClick={() => toggleScenarioActive(s)}
-                        className="px-3 py-1 rounded border border-slate-300 text-xs text-slate-900 hover:bg-slate-100 dark:border-white/15 dark:text-white dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded border border-slate-300 text-xs text-slate-900 hover:bg-slate-100 dark:border-white/15 dark:text-white dark:hover:bg-white/5 disabled:opacity-60"
                       >
-                        {s.active ? 'Desativar' : 'Ativar'}
+                        {togglingScenarioId === s.id && <ButtonSpinner size="xs" />}
+                        <span>{s.active ? 'Desativar' : 'Ativar'}</span>
                       </button>
                     </td>
                   </tr>
@@ -363,17 +410,21 @@ export function AdminPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => updatePlan(p, p.priceBrl, p.creditsMonthly + 50)}
-                  className="px-3 py-2 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15"
+                  disabled={updatingPlanKey === `${p.id}:50`}
+                  onClick={() => updatePlan(p, p.priceBrl, p.creditsMonthly + 50, 50)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 disabled:opacity-60"
                 >
-                  +50 créditos mensais
+                  {updatingPlanKey === `${p.id}:50` && <ButtonSpinner size="xs" />}
+                  <span>+50 créditos mensais</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => updatePlan(p, p.priceBrl, Math.max(50, p.creditsMonthly - 50))}
-                  className="px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white"
+                  disabled={updatingPlanKey === `${p.id}:-50`}
+                  onClick={() => updatePlan(p, p.priceBrl, Math.max(50, p.creditsMonthly - 50), -50)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white disabled:opacity-60"
                 >
-                  -50 créditos mensais
+                  {updatingPlanKey === `${p.id}:-50` && <ButtonSpinner size="xs" />}
+                  <span>-50 créditos mensais</span>
                 </button>
               </div>
             </div>
@@ -437,9 +488,11 @@ export function AdminPage() {
             />
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+              disabled={creatingNotice}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white disabled:opacity-60"
             >
-              Publicar aviso
+              {creatingNotice && <ButtonSpinner size="sm" />}
+              <span>{creatingNotice ? 'Publicando...' : 'Publicar aviso'}</span>
             </button>
           </form>
 
@@ -455,10 +508,12 @@ export function AdminPage() {
                 </div>
                 <button
                   type="button"
+                  disabled={deletingNoticeId === n.id}
                   onClick={() => deleteNotice(n.id)}
-                  className="text-xs font-medium text-red-700 dark:text-red-300 hover:underline shrink-0"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-300 hover:underline disabled:opacity-60 shrink-0"
                 >
-                  Remover
+                  {deletingNoticeId === n.id && <ButtonSpinner size="xs" />}
+                  <span>{deletingNoticeId === n.id ? 'Removendo...' : 'Remover'}</span>
                 </button>
               </div>
             ))}

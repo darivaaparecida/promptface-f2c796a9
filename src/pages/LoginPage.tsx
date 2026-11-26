@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { HERO_SHOWCASE_IMAGES, INITIAL_PLANS } from '../shared/catalog';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 
 type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'admin-claim';
@@ -387,6 +388,7 @@ export function LoginPage() {
                         disabled={submitting}
                         className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-50 inline-flex items-center justify-center gap-2 transition-all"
                       >
+                        {submitting && <ButtonSpinner size="md" />}
                         <span>{submitting ? 'Entrando...' : 'Entrar'}</span>
                         {!submitting && <ArrowRight className="w-4 h-4" aria-hidden="true" />}
                       </motion.button>
@@ -463,6 +465,7 @@ export function LoginPage() {
                         disabled={submitting}
                         className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-50 inline-flex items-center justify-center gap-2 transition-all"
                       >
+                        {submitting && <ButtonSpinner size="md" />}
                         <span>
                           {submitting ? 'Criando conta...' : 'Criar conta e ganhar 10 créditos'}
                         </span>
@@ -496,9 +499,10 @@ export function LoginPage() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
                       >
-                        {submitting ? 'Confirmando...' : 'Confirmar e entrar'}
+                        {submitting && <ButtonSpinner size="md" />}
+                        <span>{submitting ? 'Confirmando...' : 'Confirmar e entrar'}</span>
                       </button>
                     </form>
                   )}
@@ -521,9 +525,10 @@ export function LoginPage() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
                       >
-                        Enviar código de recuperação
+                        {submitting && <ButtonSpinner size="md" />}
+                        <span>{submitting ? 'Enviando...' : 'Enviar código de recuperação'}</span>
                       </button>
                     </form>
                   )}
@@ -566,9 +571,10 @@ export function LoginPage() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
                       >
-                        Redefinir senha
+                        {submitting && <ButtonSpinner size="md" />}
+                        <span>{submitting ? 'Redefinindo...' : 'Redefinir senha'}</span>
                       </button>
                     </form>
                   )}
@@ -618,9 +624,10 @@ export function LoginPage() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white"
+                        className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all"
                       >
-                        Definir administrador
+                        {submitting && <ButtonSpinner size="md" />}
+                        <span>{submitting ? 'Configurando...' : 'Definir administrador'}</span>
                       </button>
                     </form>
                   )}
@@ -789,7 +796,7 @@ export function LoginPage() {
                       key={plan.id}
                       className={`relative rounded-xl border p-4 sm:p-5 flex flex-col justify-between gap-3 transition-colors ${
                         isPremium
-                          ? 'border-violet-600 bg-violet-50/75 dark:border-[#8B5CF6]/55 dark:bg-gradient-to-b dark:from-[#7C3AED]/14 dark:via-[#0B0B11] dark:to-[#08080C] shadow-md shadow-[#7C3AED]/10'
+                          ? 'border-violet-600 bg-violet-50/75 dark:border-[#8B5CF6]/55 dark:bg-[#0B0B11] dark:bg-gradient-to-b dark:from-[#21153A] dark:via-[#110E1B] dark:to-[#08080C] shadow-md shadow-[#7C3AED]/10'
                           : 'border-slate-300 bg-slate-50 dark:border-white/10 dark:bg-[#0B0B11]'
                       }`}
                     >

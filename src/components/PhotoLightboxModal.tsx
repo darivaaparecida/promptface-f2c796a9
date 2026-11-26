@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { ImageWithFallback } from './ImageWithFallback';
 import { ImageCompareSlider } from './BeforeAfterSlider';
+import { ButtonSpinner } from './ButtonSpinner';
 import {
   ARTISTIC_FILTERS,
   SOCIAL_EXPORT_FORMATS,
@@ -126,6 +127,8 @@ export function PhotoLightboxModal({
   const [showDetails, setShowDetails] = useState(true);
   const [customTagInput, setCustomTagInput] = useState('');
   const [tagError, setTagError] = useState<string | null>(null);
+  const [savingTags, setSavingTags] = useState(false);
+  const [togglingFavorite, setTogglingFavorite] = useState(false);
   const [sharingInstagram, setSharingInstagram] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{
     network: 'whatsapp' | 'instagram' | 'twitter';
@@ -208,8 +211,13 @@ export function PhotoLightboxModal({
   const handleToggleTagInModal = async (tagName: string) => {
     if (!onUpdateTags) return;
     setTagError(null);
-    const nextTags = togglePhotoTag(itemTags, tagName);
-    await onUpdateTags(item.id, nextTags);
+    setSavingTags(true);
+    try {
+      const nextTags = togglePhotoTag(itemTags, tagName);
+      await onUpdateTags(item.id, nextTags);
+    } finally {
+      setSavingTags(false);
+    }
   };
 
   const handleAddCustomTagInModal = async (e: React.FormEvent) => {
@@ -222,7 +230,21 @@ export function PhotoLightboxModal({
     }
     setTagError(null);
     setCustomTagInput('');
-    await onUpdateTags(item.id, res.tags);
+    setSavingTags(true);
+    try {
+      await onUpdateTags(item.id, res.tags);
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
+  const handleFavoriteClick = async () => {
+    setTogglingFavorite(true);
+    try {
+      await onToggleFavorite(item.id);
+    } finally {
+      setTogglingFavorite(false);
+    }
   };
 
   useEffect(() => {
@@ -608,11 +630,16 @@ export function PhotoLightboxModal({
                       />
                       <button
                         type="submit"
+                        disabled={savingTags}
                         aria-label="Salvar nova tag"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#7C3AED] text-[11px] font-medium text-white hover:brightness-110"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#7C3AED] text-[11px] font-medium text-white hover:brightness-110 disabled:opacity-60"
                       >
-                        <Plus className="w-3 h-3" aria-hidden="true" />
-                        <span>Adicionar</span>
+                        {savingTags ? (
+                          <ButtonSpinner size="xs" />
+                        ) : (
+                          <Plus className="w-3 h-3" aria-hidden="true" />
+                        )}
+                        <span>{savingTags ? 'Salvando...' : 'Adicionar'}</span>
                       </button>
                     </form>
                   </div>
@@ -630,9 +657,10 @@ export function PhotoLightboxModal({
                         <button
                           key={tagName}
                           type="button"
+                          disabled={savingTags}
                           aria-pressed={active}
                           onClick={() => void handleToggleTagInModal(tagName)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors disabled:opacity-60 ${
                             active
                               ? 'bg-[#7C3AED] border-[#A855F7] text-white'
                               : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white'
@@ -699,7 +727,11 @@ export function PhotoLightboxModal({
                 aria-label="Compartilhar no Instagram"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-pink-600/45 bg-pink-50 text-xs font-medium text-pink-900 hover:bg-pink-100 dark:border-[#EC4899]/40 dark:bg-[#EC4899]/15 dark:text-pink-100 dark:hover:bg-[#EC4899]/25 disabled:opacity-50 transition-colors whitespace-nowrap"
               >
-                <Instagram className="w-3.5 h-3.5" aria-hidden="true" />
+                {sharingInstagram ? (
+                  <ButtonSpinner size="sm" />
+                ) : (
+                  <Instagram className="w-3.5 h-3.5" aria-hidden="true" />
+                )}
                 <span>{sharingInstagram ? 'Preparando...' : 'Instagram'}</span>
               </button>
 
@@ -790,20 +822,25 @@ export function PhotoLightboxModal({
             </Link>
             <button
               type="button"
+              disabled={togglingFavorite}
               aria-pressed={item.favorite}
-              onClick={() => void onToggleFavorite(item.id)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
+              onClick={() => void handleFavoriteClick()}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors disabled:opacity-60 ${
                 item.favorite
                   ? 'bg-pink-50 border-pink-600 text-pink-950 dark:bg-[#EC4899]/15 dark:border-[#EC4899] dark:text-white'
                   : 'border-slate-300 bg-slate-100 text-slate-800 hover:text-slate-950 dark:border-white/15 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
               }`}
             >
-              <Heart
-                className={`w-4 h-4 ${
-                  item.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
-                }`}
-                aria-hidden="true"
-              />
+              {togglingFavorite ? (
+                <ButtonSpinner size="md" />
+              ) : (
+                <Heart
+                  className={`w-4 h-4 ${
+                    item.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
+                  }`}
+                  aria-hidden="true"
+                />
+              )}
               <span>{item.favorite ? 'Favorita' : 'Favoritar'}</span>
             </button>
             {exportFormat !== 'original' && (
@@ -814,7 +851,11 @@ export function PhotoLightboxModal({
                 aria-label="Baixar imagem em alta resolução original"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-violet-700/70 bg-violet-100 text-xs font-medium text-violet-950 hover:bg-violet-200 dark:border-[#7C3AED]/70 dark:bg-[#7C3AED]/15 dark:text-white dark:hover:bg-[#7C3AED]/30 disabled:opacity-50 whitespace-nowrap"
               >
-                <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                {downloading ? (
+                  <ButtonSpinner size="sm" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                )}
                 <span>Alta resolução</span>
               </button>
             )}
@@ -829,7 +870,11 @@ export function PhotoLightboxModal({
               }
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 whitespace-nowrap"
             >
-              <Download className="w-4 h-4" aria-hidden="true" />
+              {downloading ? (
+                <ButtonSpinner size="md" />
+              ) : (
+                <Download className="w-4 h-4" aria-hidden="true" />
+              )}
               <span>
                 {downloading
                   ? 'Baixando...'

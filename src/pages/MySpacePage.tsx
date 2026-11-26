@@ -38,6 +38,9 @@ import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
 import { PhotoComparisonModal } from '../components/PhotoComparisonModal';
 import { FloatingBatchToolbar } from '../components/FloatingBatchToolbar';
 import { MySpaceOnboardingTour } from '../components/MySpaceOnboardingTour';
+import { ButtonSpinner } from '../components/ButtonSpinner';
+import { ProfileAvatar } from '../components/ProfileAvatar';
+import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
 import type { VisualProfileData } from '../shared/rules';
 import { getPreferredAiModelOption } from '../shared/aiModels';
 import {
@@ -195,6 +198,14 @@ export function MySpacePage() {
     text: string;
   } | null>(null);
   const [batchTargetFolderId, setBatchTargetFolderId] = useState<string>('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+  const [assigningFolderPhotoId, setAssigningFolderPhotoId] = useState<string | null>(null);
+  const [updatingTagPhotoId, setUpdatingTagPhotoId] = useState<string | null>(null);
+  const [togglingFavoriteId, setTogglingFavoriteId] = useState<string | null>(null);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [cancelingSubscription, setCancelingSubscription] = useState(false);
   const [movingBatch, setMovingBatch] = useState(false);
   const [taggingBatch, setTaggingBatch] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
@@ -217,6 +228,12 @@ export function MySpacePage() {
   const [appliedFilters, setAppliedFilters] = useState<Record<string, ArtisticFilterId>>(
     loadSavedFilters
   );
+
+  const avatarDisplay = resolveProfileAvatarDisplay({
+    faces,
+    seed: user?.id || user?.email,
+    getMediaUrl,
+  });
 
   const canCompareSelection = canCompareSelectedPhotos(selectedIds);
   const activeComparisonPair = useMemo(
@@ -399,6 +416,7 @@ export function MySpacePage() {
       return;
     }
 
+    setCreatingFolder(true);
     try {
       const res = await apiFetch('/api/folders', {
         method: 'POST',
@@ -424,6 +442,8 @@ export function MySpacePage() {
         type: 'error',
         text: 'Erro de conexão ao criar a pasta.',
       });
+    } finally {
+      setCreatingFolder(false);
     }
   };
 
@@ -443,6 +463,7 @@ export function MySpacePage() {
       return;
     }
 
+    setRenamingFolder(true);
     try {
       const res = await apiFetch(`/api/folders/${editingFolderId}`, {
         method: 'PATCH',
@@ -470,12 +491,15 @@ export function MySpacePage() {
         type: 'error',
         text: 'Erro de conexão ao renomear a pasta.',
       });
+    } finally {
+      setRenamingFolder(false);
     }
   };
 
   const handleDeleteFolder = async (folderId: string) => {
     setFolderFeedback(null);
     const target = folderById.get(folderId);
+    setDeletingFolderId(folderId);
     try {
       const res = await apiFetch(`/api/folders/${folderId}`, {
         method: 'DELETE',
@@ -507,11 +531,14 @@ export function MySpacePage() {
         type: 'error',
         text: 'Erro de conexão ao excluir a pasta.',
       });
+    } finally {
+      setDeletingFolderId(null);
     }
   };
 
   const handleAssignPhotoFolder = async (photoId: string, targetFolderId: string | null) => {
     setFolderFeedback(null);
+    setAssigningFolderPhotoId(photoId);
     try {
       const res = await apiFetch(`/api/generations/${photoId}/folder`, {
         method: 'PATCH',
@@ -542,11 +569,14 @@ export function MySpacePage() {
         type: 'error',
         text: 'Erro de conexão ao atualizar a pasta da foto.',
       });
+    } finally {
+      setAssigningFolderPhotoId(null);
     }
   };
 
   const handleUpdatePhotoTags = async (photoId: string, nextTags: string[]) => {
     setErrorMsg(null);
+    setUpdatingTagPhotoId(photoId);
     try {
       const res = await apiFetch(`/api/generations/${photoId}/tags`, {
         method: 'PATCH',
@@ -569,6 +599,8 @@ export function MySpacePage() {
       );
     } catch {
       setErrorMsg('Erro de conexão ao salvar as tags da foto.');
+    } finally {
+      setUpdatingTagPhotoId(null);
     }
   };
 
@@ -816,24 +848,34 @@ export function MySpacePage() {
   };
 
   const handleToggleFavorite = async (id: string) => {
-    const res = await apiFetch(`/api/generations/${id}/favorite`, { method: 'PATCH' });
-    if (res.ok) {
-      const data = (await res.json()) as { favorite: boolean };
-      setGenerations((prev) =>
-        prev.map((g) => (g.id === id ? { ...g, favorite: data.favorite } : g))
-      );
-      if (lightboxItem?.id === id) {
-        setLightboxItem((prev) => (prev ? { ...prev, favorite: data.favorite } : null));
+    setTogglingFavoriteId(id);
+    try {
+      const res = await apiFetch(`/api/generations/${id}/favorite`, { method: 'PATCH' });
+      if (res.ok) {
+        const data = (await res.json()) as { favorite: boolean };
+        setGenerations((prev) =>
+          prev.map((g) => (g.id === id ? { ...g, favorite: data.favorite } : g))
+        );
+        if (lightboxItem?.id === id) {
+          setLightboxItem((prev) => (prev ? { ...prev, favorite: data.favorite } : null));
+        }
       }
+    } finally {
+      setTogglingFavoriteId(null);
     }
   };
 
   const handleDeleteGeneration = async (id: string) => {
-    const res = await apiFetch(`/api/generations/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      setGenerations((prev) => prev.filter((g) => g.id !== id));
-      setSelectedIds((prev) => prev.filter((item) => item !== id));
-      if (lightboxItem?.id === id) setLightboxItem(null);
+    setDeletingPhotoId(id);
+    try {
+      const res = await apiFetch(`/api/generations/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setGenerations((prev) => prev.filter((g) => g.id !== id));
+        setSelectedIds((prev) => prev.filter((item) => item !== id));
+        if (lightboxItem?.id === id) setLightboxItem(null);
+      }
+    } finally {
+      setDeletingPhotoId(null);
     }
   };
 
@@ -1007,10 +1049,15 @@ export function MySpacePage() {
   };
 
   const handleCancelSubscription = async () => {
-    const res = await apiFetch('/api/subscription/cancel', { method: 'POST' });
-    if (res.ok) {
-      await refreshUser();
-      await loadSpaceData();
+    setCancelingSubscription(true);
+    try {
+      const res = await apiFetch('/api/subscription/cancel', { method: 'POST' });
+      if (res.ok) {
+        await refreshUser();
+        await loadSpaceData();
+      }
+    } finally {
+      setCancelingSubscription(false);
     }
   };
 
@@ -1045,13 +1092,24 @@ export function MySpacePage() {
       }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
-            Área pessoal · {user?.email}
-          </p>
-          <h1 className="mt-1 font-display text-3xl font-bold text-slate-950 dark:text-white">
-            Meu Espaço
-          </h1>
+        <div className="flex items-center gap-4">
+          <ProfileAvatar
+            faces={faces}
+            seed={user?.id || user?.email}
+            getMediaUrl={getMediaUrl}
+            size="md"
+          />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
+              Área pessoal · {user?.email}
+            </p>
+            <h1 className="mt-0.5 font-display text-3xl font-bold text-slate-950 dark:text-white">
+              Meu Espaço
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-700 dark:text-[#A1A1AA]">
+              {avatarDisplay.label}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -1278,7 +1336,11 @@ export function MySpacePage() {
                           }
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-medium text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#A855F7] disabled:opacity-50 transition-colors whitespace-nowrap"
                         >
-                          <FileText className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+                          {exportingPdf ? (
+                            <ButtonSpinner size="sm" className="text-violet-700 dark:text-[#A855F7]" />
+                          ) : (
+                            <FileText className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+                          )}
                           <span>{exportingPdf ? 'Gerando PDF...' : 'Exportar álbum PDF'}</span>
                         </button>
                       </>
@@ -1314,9 +1376,11 @@ export function MySpacePage() {
                       />
                       <button
                         type="submit"
-                        className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110"
+                        disabled={creatingFolder}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-60"
                       >
-                        Criar pasta
+                        {creatingFolder && <ButtonSpinner size="xs" />}
+                        <span>{creatingFolder ? 'Criando...' : 'Criar pasta'}</span>
                       </button>
                       <button
                         type="button"
@@ -1337,8 +1401,9 @@ export function MySpacePage() {
                         <button
                           key={suggestion}
                           type="button"
+                          disabled={creatingFolder}
                           onClick={() => void handleCreateFolderByName(suggestion)}
-                          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] text-slate-800 hover:text-slate-950 hover:border-violet-700 dark:border-white/10 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:text-white dark:hover:border-[#8B5CF6] transition-colors"
+                          className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] text-slate-800 hover:text-slate-950 hover:border-violet-700 dark:border-white/10 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:text-white dark:hover:border-[#8B5CF6] disabled:opacity-50 transition-colors"
                         >
                           + {suggestion}
                         </button>
@@ -1392,10 +1457,15 @@ export function MySpacePage() {
                           />
                           <button
                             type="submit"
+                            disabled={renamingFolder}
                             aria-label={`Salvar nome da pasta ${folder.name}`}
-                            className="p-1.5 rounded-lg bg-[#7C3AED] text-white hover:brightness-110"
+                            className="p-1.5 rounded-lg bg-[#7C3AED] text-white hover:brightness-110 disabled:opacity-60"
                           >
-                            <Check className="w-3.5 h-3.5" />
+                            {renamingFolder ? (
+                              <ButtonSpinner size="sm" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5" />
+                            )}
                           </button>
                           <button
                             type="button"
@@ -1421,10 +1491,12 @@ export function MySpacePage() {
                           <span>Excluir "{folder.name}"?</span>
                           <button
                             type="button"
+                            disabled={deletingFolderId === folder.id}
                             onClick={() => void handleDeleteFolder(folder.id)}
-                            className="px-2 py-0.5 rounded-md bg-red-600 text-white font-medium hover:bg-red-500"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-600 text-white font-medium hover:bg-red-500 disabled:opacity-60"
                           >
-                            Confirmar
+                            {deletingFolderId === folder.id && <ButtonSpinner size="xs" />}
+                            <span>{deletingFolderId === folder.id ? 'Excluindo...' : 'Confirmar'}</span>
                           </button>
                           <button
                             type="button"
@@ -1651,7 +1723,11 @@ export function MySpacePage() {
                           disabled={movingBatch}
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-violet-700 bg-violet-100 text-xs font-semibold text-violet-950 hover:bg-violet-200 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white dark:hover:bg-[#7C3AED]/30 disabled:opacity-50 transition-colors"
                         >
-                          <FolderInput className="w-3.5 h-3.5" aria-hidden="true" />
+                          {movingBatch ? (
+                            <ButtonSpinner size="sm" />
+                          ) : (
+                            <FolderInput className="w-3.5 h-3.5" aria-hidden="true" />
+                          )}
                           <span>{movingBatch ? 'Movendo...' : 'Mover seleção'}</span>
                         </button>
                       </div>
@@ -1687,7 +1763,11 @@ export function MySpacePage() {
                           : 'border border-slate-300 bg-slate-100 text-slate-600 dark:border-white/15 dark:bg-[#08080C] dark:text-[#A1A1AA]'
                       }`}
                     >
-                      <Archive className="w-3.5 h-3.5" aria-hidden="true" />
+                      {downloadingZip ? (
+                        <ButtonSpinner size="sm" />
+                      ) : (
+                        <Archive className="w-3.5 h-3.5" aria-hidden="true" />
+                      )}
                       <span>
                         {downloadingZip
                           ? 'Gerando ZIP...'
@@ -1814,6 +1894,7 @@ export function MySpacePage() {
                             </button>
                             <button
                               type="button"
+                              disabled={togglingFavoriteId === item.id}
                               aria-pressed={item.favorite}
                               onClick={() => handleToggleFavorite(item.id)}
                               aria-label={
@@ -1821,13 +1902,17 @@ export function MySpacePage() {
                                   ? `Remover dos favoritos: ${item.scenarioTitle}`
                                   : `Favoritar ${item.scenarioTitle}`
                               }
-                              className="p-2 rounded-lg bg-[#08080C]/80 text-white hover:bg-[#EC4899]"
+                              className="p-2 rounded-lg bg-[#08080C]/80 text-white hover:bg-[#EC4899] disabled:opacity-60"
                             >
-                              <Heart
-                                className={`w-4 h-4 ${
-                                  item.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
-                                }`}
-                              />
+                              {togglingFavoriteId === item.id ? (
+                                <ButtonSpinner size="md" />
+                              ) : (
+                                <Heart
+                                  className={`w-4 h-4 ${
+                                    item.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
+                                  }`}
+                                />
+                              )}
                             </button>
                           </div>
                           <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
@@ -1890,11 +1975,12 @@ export function MySpacePage() {
                               <Folder className="w-3.5 h-3.5 text-violet-700 dark:text-[#8B5CF6] shrink-0" aria-hidden="true" />
                               <select
                                 aria-label={`Pasta: ${item.scenarioTitle}`}
+                                disabled={assigningFolderPhotoId === item.id}
                                 value={item.folderId && folderById.has(item.folderId) ? item.folderId : ''}
                                 onChange={(e) =>
                                   void handleAssignPhotoFolder(item.id, e.target.value || null)
                                 }
-                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white disabled:opacity-60"
                               >
                                 <option value="">Sem pasta</option>
                                   {folders.map((folder) => (
@@ -2007,11 +2093,16 @@ export function MySpacePage() {
                                     />
                                     <button
                                       type="submit"
+                                      disabled={updatingTagPhotoId === item.id}
                                       aria-label={`Adicionar tag personalizada em ${item.scenarioTitle}`}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#7C3AED] text-[11px] font-medium text-white hover:brightness-110 shrink-0"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#7C3AED] text-[11px] font-medium text-white hover:brightness-110 disabled:opacity-60 shrink-0"
                                     >
-                                      <Plus className="w-3 h-3" aria-hidden="true" />
-                                      <span>Salvar</span>
+                                      {updatingTagPhotoId === item.id ? (
+                                        <ButtonSpinner size="xs" />
+                                      ) : (
+                                        <Plus className="w-3 h-3" aria-hidden="true" />
+                                      )}
+                                      <span>{updatingTagPhotoId === item.id ? 'Salvando...' : 'Salvar'}</span>
                                     </button>
                                   </form>
                                   {cardTagError && (
@@ -2085,16 +2176,25 @@ export function MySpacePage() {
                                 aria-label={`Download ${item.scenarioTitle}`}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED]/70 dark:text-white dark:hover:bg-[#7C3AED]/20 disabled:opacity-50 transition-colors"
                               >
-                                <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                                {downloadingId === item.id ? (
+                                  <ButtonSpinner size="sm" />
+                                ) : (
+                                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                                )}
                                 <span>{downloadingId === item.id ? 'Baixando...' : 'Download'}</span>
                               </button>
                               <button
                                 type="button"
+                                disabled={deletingPhotoId === item.id}
                                 onClick={() => handleDeleteGeneration(item.id)}
                                 aria-label={`Excluir ${item.scenarioTitle}`}
-                                className="p-2 rounded-lg border border-slate-300 text-slate-700 hover:text-red-700 dark:border-white/10 dark:text-[#A1A1AA] dark:hover:text-red-400"
+                                className="p-2 rounded-lg border border-slate-300 text-slate-700 hover:text-red-700 dark:border-white/10 dark:text-[#A1A1AA] dark:hover:text-red-400 disabled:opacity-50"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                {deletingPhotoId === item.id ? (
+                                  <ButtonSpinner size="sm" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
                               </button>
                             </div>
                           </div>
@@ -2292,7 +2392,30 @@ export function MySpacePage() {
                 </Link>
               </div>
               {faces.length === 0 ? (
-                <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">Nenhuma foto de referência enviada.</p>
+                <div className="rounded-xl border border-slate-300 bg-slate-50 dark:border-white/10 dark:bg-[#08080C] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <ProfileAvatar
+                      faces={faces}
+                      seed={user?.id || user?.email}
+                      getMediaUrl={getMediaUrl}
+                      size="lg"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                        {avatarDisplay.label}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA] max-w-md">
+                        Nenhuma foto de referência enviada ainda. Seu perfil exibe automaticamente um avatar abstrato padrão até o primeiro envio.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/perfil-visual"
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white whitespace-nowrap shrink-0 text-center"
+                  >
+                    Enviar meu rosto
+                  </Link>
+                </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {faces.map((f) => (
@@ -2316,10 +2439,23 @@ export function MySpacePage() {
           {/* TAB 5: VISUAL PROFILE */}
           {activeTab === 'perfil' && (
             <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-5 shadow-sm dark:shadow-none">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="font-display text-lg font-semibold text-slate-950 dark:text-white">
-                  Resumo do Perfil Visual
-                </h2>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <ProfileAvatar
+                    faces={faces}
+                    seed={user?.id || user?.email}
+                    getMediaUrl={getMediaUrl}
+                    size="md"
+                  />
+                  <div>
+                    <h2 className="font-display text-lg font-semibold text-slate-950 dark:text-white">
+                      Resumo do Perfil Visual
+                    </h2>
+                    <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
+                      {avatarDisplay.label}
+                    </p>
+                  </div>
+                </div>
                 <Link
                   to="/perfil-visual"
                   className="px-4 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15"
@@ -2442,10 +2578,12 @@ export function MySpacePage() {
                   {subscription?.subscriptionStatus === 'active' && (
                     <button
                       type="button"
+                      disabled={cancelingSubscription}
                       onClick={handleCancelSubscription}
-                      className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white"
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white disabled:opacity-60"
                     >
-                      Cancelar renovação
+                      {cancelingSubscription && <ButtonSpinner size="sm" />}
+                      <span>{cancelingSubscription ? 'Cancelando...' : 'Cancelar renovação'}</span>
                     </button>
                   )}
                 </div>

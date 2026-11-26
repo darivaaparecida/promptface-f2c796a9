@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { ImageWithFallback } from './ImageWithFallback';
 import { ImageCompareSlider } from './BeforeAfterSlider';
+import { ButtonSpinner } from './ButtonSpinner';
 import {
   getArtisticFilter,
   type ArtisticFilterId,
@@ -48,7 +49,17 @@ export function PhotoComparisonModal({
 }: PhotoComparisonModalProps) {
   const [photoA, photoB] = pair;
   const [viewMode, setViewMode] = useState<'side-by-side' | 'slider'>('side-by-side');
+  const [togglingFavoriteId, setTogglingFavoriteId] = useState<string | null>(null);
   const [dimsMap, setDimsMap] = useState<Record<string, { width: number; height: number }>>({});
+
+  const handleFavoriteClick = async (photoId: string) => {
+    setTogglingFavoriteId(photoId);
+    try {
+      await onToggleFavorite(photoId);
+    } finally {
+      setTogglingFavoriteId(null);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -308,20 +319,25 @@ export function PhotoComparisonModal({
                     <div className="pt-2 border-t border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-2">
                       <button
                         type="button"
+                        disabled={togglingFavoriteId === item.id}
                         aria-pressed={item.favorite}
-                        onClick={() => void onToggleFavorite(item.id)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+                        onClick={() => void handleFavoriteClick(item.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors disabled:opacity-60 ${
                           item.favorite
                             ? 'bg-pink-50 border-pink-600 text-pink-950 dark:bg-[#EC4899]/15 dark:border-[#EC4899] dark:text-white'
                             : 'border-slate-300 bg-white text-slate-800 hover:text-slate-950 dark:border-white/15 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:text-white'
                         }`}
                       >
-                        <Heart
-                          className={`w-3.5 h-3.5 ${
-                            item.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
-                          }`}
-                          aria-hidden="true"
-                        />
+                        {togglingFavoriteId === item.id ? (
+                          <ButtonSpinner size="sm" />
+                        ) : (
+                          <Heart
+                            className={`w-3.5 h-3.5 ${
+                              item.favorite ? 'fill-[#EC4899] text-[#EC4899]' : ''
+                            }`}
+                            aria-hidden="true"
+                          />
+                        )}
                         <span>{item.favorite ? 'Escolhida (Favorita)' : 'Escolher como favorita'}</span>
                       </button>
 
@@ -340,7 +356,11 @@ export function PhotoComparisonModal({
                           onClick={() => void onDownload(item)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
                         >
-                          <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                          {downloadingId === item.id ? (
+                            <ButtonSpinner size="sm" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                          )}
                           <span>{downloadingId === item.id ? 'Baixando...' : 'Baixar'}</span>
                         </button>
                       </div>

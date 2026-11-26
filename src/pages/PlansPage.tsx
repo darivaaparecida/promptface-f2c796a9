@@ -16,6 +16,7 @@ import {
   getPlanUnitMetrics,
 } from '../shared/plansCalculator';
 import { useAuth } from '../context/AuthContext';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 
 interface ComparisonRow {
   label: string;
@@ -438,17 +439,20 @@ export function PlansPage() {
                       type="button"
                       disabled={loadingPlan === plan.id}
                       onClick={() => void handleSubscribe(plan)}
-                      className={`w-full px-5 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50 whitespace-nowrap ${
+                      className={`w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50 whitespace-nowrap ${
                         isHighlighted
                           ? 'text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] hover:brightness-110 shadow-lg shadow-[#7C3AED]/25'
                           : 'border border-violet-700 text-violet-950 hover:bg-violet-100 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15'
                       }`}
                     >
-                      {loadingPlan === plan.id
-                        ? 'Abrindo checkout...'
-                        : config.stripeConfigured
-                        ? `Assinar ${plan.name}`
-                        : `Avisar sobre ${plan.name}`}
+                      {loadingPlan === plan.id && <ButtonSpinner size="sm" />}
+                      <span>
+                        {loadingPlan === plan.id
+                          ? 'Abrindo checkout...'
+                          : config.stripeConfigured
+                          ? `Assinar ${plan.name}`
+                          : `Avisar sobre ${plan.name}`}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -553,6 +557,7 @@ export function PlansPage() {
               ) : (
                 <button
                   type="button"
+                  disabled={loadingPlan === usageSummary.recommendedPlanId}
                   onClick={() => {
                     const targetPlan =
                       plans.find((p) => p.id === usageSummary.recommendedPlanId) ?? plans[1];
@@ -562,14 +567,23 @@ export function PlansPage() {
                       scrollToWaitlist(targetPlan?.name);
                     }
                   }}
-                  className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 transition-all whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-60 transition-all whitespace-nowrap"
                 >
-                  <span>
-                    {user && config.stripeConfigured
-                      ? `Assinar ${recommendedLabel}`
-                      : `Quero o ${recommendedLabel}`}
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  {loadingPlan === usageSummary.recommendedPlanId ? (
+                    <>
+                      <ButtonSpinner size="sm" />
+                      <span>Abrindo checkout...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {user && config.stripeConfigured
+                          ? `Assinar ${recommendedLabel}`
+                          : `Quero o ${recommendedLabel}`}
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -754,9 +768,10 @@ export function PlansPage() {
               <button
                 type="submit"
                 disabled={waitlistSubmitting}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all whitespace-nowrap shrink-0"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all whitespace-nowrap shrink-0"
               >
-                {waitlistSubmitting ? 'Enviando...' : 'Entrar na lista'}
+                {waitlistSubmitting && <ButtonSpinner size="sm" />}
+                <span>{waitlistSubmitting ? 'Enviando...' : 'Entrar na lista'}</span>
               </button>
             </form>
 

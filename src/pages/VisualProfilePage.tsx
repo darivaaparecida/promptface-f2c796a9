@@ -11,7 +11,13 @@ import {
   normalizePreferredAiModel,
   type PreferredAiModelId,
 } from '../shared/aiModels';
+import {
+  DEFAULT_ABSTRACT_AVATARS,
+  resolveProfileAvatarDisplay,
+} from '../shared/defaultAvatars';
+import { ButtonSpinner } from '../components/ButtonSpinner';
 import { ImageWithFallback } from '../components/ImageWithFallback';
+import { ProfileAvatar } from '../components/ProfileAvatar';
 
 interface FaceItem {
   id: string;
@@ -83,10 +89,16 @@ export function VisualProfilePage() {
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [deletingFaceId, setDeletingFaceId] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const selectedModelOption = getPreferredAiModelOption(profile.preferredModel);
+  const avatarDisplay = resolveProfileAvatarDisplay({
+    faces,
+    seed: user?.id || user?.email,
+    getMediaUrl,
+  });
 
   const loadData = async () => {
     try {
@@ -164,10 +176,15 @@ export function VisualProfilePage() {
 
   const handleDeleteFace = async (id: string) => {
     setFeedback(null);
-    const res = await apiFetch(`/api/faces/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      setFaces((prev) => prev.filter((f) => f.id !== id));
-      setFeedback({ type: 'ok', text: 'Foto removida permanentemente dos nossos servidores.' });
+    setDeletingFaceId(id);
+    try {
+      const res = await apiFetch(`/api/faces/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setFaces((prev) => prev.filter((f) => f.id !== id));
+        setFeedback({ type: 'ok', text: 'Foto removida permanentemente dos nossos servidores.' });
+      }
+    } finally {
+      setDeletingFaceId(null);
     }
   };
 
@@ -201,17 +218,27 @@ export function VisualProfilePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14 space-y-10">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
-            Privado por padrão · LGPD
-          </p>
-          <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white">
-            Meu Perfil Visual
-          </h1>
-          <p className="mt-2 text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA] max-w-2xl">
-            Envie uma ou mais fotos do seu próprio rosto e descreva detalhes visuais opcionais para aumentar a fidelidade em cada geração.
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
+        <div className="flex items-start sm:items-center gap-4">
+          <ProfileAvatar
+            faces={faces}
+            seed={user?.id || user?.email}
+            getMediaUrl={getMediaUrl}
+            size="lg"
+          />
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
+              Privado por padrão · LGPD
+            </p>
+            <h1 className="mt-1 font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white">
+              Meu Perfil Visual
+            </h1>
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-700 dark:text-[#A1A1AA] max-w-2xl">
+              {avatarDisplay.isDefault
+                ? `${avatarDisplay.label} em uso automaticamente até você enviar uma foto do seu rosto.`
+                : 'Sua foto de referência facial ativa está pronta para preservar sua identidade em cada criação.'}
+            </p>
+          </div>
         </div>
         {faces.length > 0 && (
           <Link
@@ -283,7 +310,11 @@ export function VisualProfilePage() {
                   : 'border-slate-300 bg-slate-100/60 dark:border-white/10 dark:bg-[#08080C]/30 opacity-75 cursor-not-allowed'
               }`}
             >
-              <Upload className="w-6 h-6 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
+              {uploading ? (
+                <ButtonSpinner size="md" className="w-6 h-6 text-violet-700 dark:text-[#8B5CF6]" />
+              ) : (
+                <Upload className="w-6 h-6 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
+              )}
               <div>
                 <p className="text-sm font-medium text-slate-950 dark:text-white">
                   {uploading ? 'Validando e salvando foto...' : 'Selecionar foto do meu rosto'}
@@ -309,9 +340,51 @@ export function VisualProfilePage() {
           {loading ? (
             <div className="h-32 rounded-xl skeleton-violet" />
           ) : faces.length === 0 ? (
-            <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
-              Você ainda não enviou nenhuma foto de referência. Aceite o termo acima e envie sua primeira foto.
-            </p>
+            <div
+              data-testid="default-avatar-showcase"
+              className="rounded-xl border border-slate-300 bg-slate-50 dark:border-white/10 dark:bg-[#08080C] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-5"
+            >
+              <div className="flex items-center gap-4">
+                <ProfileAvatar
+                  faces={faces}
+                  seed={user?.id || user?.email}
+                  getMediaUrl={getMediaUrl}
+                  size="lg"
+                />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                    {avatarDisplay.avatar?.name ?? 'Avatar padrão'} ativo no seu perfil
+                  </p>
+                  <p className="text-xs text-slate-700 dark:text-[#A1A1AA] max-w-md leading-relaxed">
+                    Enquanto você ainda não envia uma foto do seu rosto, exibimos automaticamente este avatar abstrato exclusivo. Assim que enviar sua primeira selfie acima, ela passa a representar seu perfil.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0" aria-label="Série de avatares abstratos padrão">
+                {DEFAULT_ABSTRACT_AVATARS.map((item) => {
+                  const isCurrent = avatarDisplay.avatar?.id === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      title={item.name}
+                      className={`w-11 h-11 rounded-xl overflow-hidden border transition-all ${
+                        isCurrent
+                          ? 'border-violet-700 ring-2 ring-violet-600/35 dark:border-[#A855F7] dark:ring-[#A855F7]/35 scale-105'
+                          : 'border-slate-300 opacity-75 dark:border-white/15'
+                      }`}
+                    >
+                      <ImageWithFallback
+                        src={item.src}
+                        alt={item.name}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {faces.map((face) => (
@@ -326,11 +399,16 @@ export function VisualProfilePage() {
                   />
                   <button
                     type="button"
+                    disabled={deletingFaceId === face.id}
                     onClick={() => handleDeleteFace(face.id)}
                     aria-label="Excluir foto de referência"
-                    className="absolute top-2 right-2 p-2 rounded-lg bg-[#08080C]/85 text-white hover:bg-red-600 transition-colors"
+                    className="absolute top-2 right-2 p-2 rounded-lg bg-[#08080C]/85 text-white hover:bg-red-600 disabled:opacity-60 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {deletingFaceId === face.id ? (
+                      <ButtonSpinner size="md" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </button>
                   <span className="absolute bottom-2 left-2 text-[11px] text-white/90 bg-[#08080C]/80 px-2 py-0.5 rounded">
                     Privada
@@ -454,9 +532,10 @@ export function VisualProfilePage() {
             <button
               type="submit"
               disabled={savingProfile}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-60"
             >
-              {savingProfile ? 'Salvando...' : 'Salvar Perfil Visual'}
+              {savingProfile && <ButtonSpinner size="sm" />}
+              <span>{savingProfile ? 'Salvando...' : 'Salvar Perfil Visual'}</span>
             </button>
           </div>
         </form>

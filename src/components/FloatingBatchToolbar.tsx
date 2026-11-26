@@ -12,6 +12,7 @@ import {
 import { ARTISTIC_FILTERS, type ArtisticFilterId } from '../shared/artisticFilters';
 import type { FolderItem } from '../shared/photoFolders';
 import { PRESET_PHOTO_TAGS } from '../shared/photoTags';
+import { ButtonSpinner } from './ButtonSpinner';
 
 interface FloatingBatchToolbarProps {
   selectedCount: number;
@@ -142,7 +143,11 @@ export function FloatingBatchToolbar({
                 onClick={() => void onApplyBatchTag(batchTag)}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-xs font-medium text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] disabled:opacity-50 transition-colors whitespace-nowrap"
               >
-                <Tag className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+                {taggingBatch ? (
+                  <ButtonSpinner size="sm" className="text-violet-700 dark:text-[#A855F7]" />
+                ) : (
+                  <Tag className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+                )}
                 <span>{taggingBatch ? 'Marcando...' : 'Marcar tag'}</span>
               </button>
             </div>
@@ -169,7 +174,11 @@ export function FloatingBatchToolbar({
               disabled={movingBatch}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-xs font-medium text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] disabled:opacity-50 transition-colors whitespace-nowrap"
             >
-              <FolderInput className="w-3.5 h-3.5 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
+              {movingBatch ? (
+                <ButtonSpinner size="sm" className="text-violet-700 dark:text-[#8B5CF6]" />
+              ) : (
+                <FolderInput className="w-3.5 h-3.5 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
+              )}
               <span>{movingBatch ? 'Movendo...' : 'Mover para álbum'}</span>
             </button>
           </div>
@@ -181,7 +190,11 @@ export function FloatingBatchToolbar({
             disabled={exportingPdf}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-xs font-medium text-slate-950 hover:border-violet-700 dark:border-white/15 dark:bg-[#08080C] dark:text-white dark:hover:border-[#8B5CF6] disabled:opacity-50 transition-colors whitespace-nowrap"
           >
-            <FileText className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+            {exportingPdf ? (
+              <ButtonSpinner size="sm" className="text-violet-700 dark:text-[#A855F7]" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+            )}
             <span>{exportingPdf ? 'Gerando PDF...' : 'Álbum PDF'}</span>
           </button>
 
@@ -191,7 +204,11 @@ export function FloatingBatchToolbar({
             disabled={downloadingZip}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-50 transition-all whitespace-nowrap"
           >
-            <Archive className="w-3.5 h-3.5" aria-hidden="true" />
+            {downloadingZip ? (
+              <ButtonSpinner size="sm" />
+            ) : (
+              <Archive className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
             <span>{downloadingZip ? 'Gerando ZIP...' : 'Baixar ZIP'}</span>
           </button>
 
@@ -202,9 +219,10 @@ export function FloatingBatchToolbar({
                 type="button"
                 disabled={deletingBatch}
                 onClick={() => void onDeleteSelected()}
-                className="px-2.5 py-1 rounded-lg bg-red-600 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50 whitespace-nowrap"
               >
-                {deletingBatch ? 'Excluindo...' : `Confirmar (${selectedCount})`}
+                {deletingBatch && <ButtonSpinner size="xs" />}
+                <span>{deletingBatch ? 'Excluindo...' : `Confirmar (${selectedCount})`}</span>
               </button>
               <button
                 type="button"
