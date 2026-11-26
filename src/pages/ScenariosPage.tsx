@@ -61,20 +61,20 @@ export function ScenariosPage() {
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2 max-w-2xl">
-          <p className="text-xs font-medium uppercase tracking-wider text-[#8B5CF6]">
+          <p className="text-xs font-medium uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
             Biblioteca completa · {scenarios.length} cenários
           </p>
-          <h1 className="font-display text-3xl sm:text-4xl font-bold text-white text-balance">
+          <h1 className="font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white text-balance">
             Escolha um cenário pronto para personalizar
           </h1>
-          <p className="text-sm sm:text-base text-[#A1A1AA]">
+          <p className="text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA]">
             Explore 14 categorias com imagens de demonstração e personalize roupa, ambiente, pose, iluminação e formato antes de gerar.
           </p>
         </div>
 
         <div className="relative w-full md:w-80 shrink-0">
           <Search
-            className="w-4 h-4 text-[#A1A1AA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-4 h-4 text-slate-600 dark:text-[#A1A1AA] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
             aria-hidden="true"
           />
           <label htmlFor="scenarios-search" className="sr-only">
@@ -86,14 +86,14 @@ export function ScenariosPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar cenário (ex.: Dubai, CEO, Paris)"
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#17171F] border border-white/15 text-sm text-white placeholder:text-[#A1A1AA]/70 focus:outline-none focus:border-[#8B5CF6]"
+            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 dark:bg-[#17171F] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/70 focus:outline-none focus:border-[#8B5CF6]"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
               aria-label="Limpar busca"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#A1A1AA] hover:text-white"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -111,7 +111,7 @@ export function ScenariosPage() {
           className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
             selectedCategory === 'all'
               ? 'bg-[#7C3AED] text-white'
-              : 'bg-[#17171F] text-[#A1A1AA] border border-white/10 hover:text-white'
+              : 'bg-white text-slate-800 border border-slate-300 hover:text-slate-950 hover:border-slate-500 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:border-white/10 dark:hover:text-white'
           }`}
         >
           Todas ({scenarios.length})
@@ -129,7 +129,7 @@ export function ScenariosPage() {
               className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 active
                   ? 'bg-[#7C3AED] text-white'
-                  : 'bg-[#17171F] text-[#A1A1AA] border border-white/10 hover:text-white'
+                  : 'bg-white text-slate-800 border border-slate-300 hover:text-slate-950 hover:border-slate-500 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:border-white/10 dark:hover:text-white'
               }`}
             >
               {cat.name}
@@ -138,13 +138,13 @@ export function ScenariosPage() {
         })}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-[#A1A1AA] font-mono-num">
+      <div className="flex items-center justify-between text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
         <span>Exibindo {filtered.length} cenários</span>
         {(selectedCategory !== 'all' || query) && (
           <button
             type="button"
             onClick={clearFilters}
-            className="text-[#8B5CF6] hover:underline"
+            className="text-violet-700 dark:text-[#8B5CF6] hover:underline"
           >
             Limpar filtros
           </button>
@@ -152,18 +152,18 @@ export function ScenariosPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#17171F] p-12 text-center space-y-4">
-          <h2 className="font-display text-lg font-semibold text-white">
+        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-12 text-center space-y-4">
+          <h2 className="font-display text-lg font-semibold text-slate-950 dark:text-white">
             Nenhum cenário encontrado
           </h2>
-          <p className="text-sm text-[#A1A1AA] max-w-md mx-auto">
+          <p className="text-sm text-slate-700 dark:text-[#A1A1AA] max-w-md mx-auto">
             Não encontramos cenários com os filtros atuais. Você pode limpar os filtros ou usar o modo Criação Livre.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               type="button"
               onClick={clearFilters}
-              className="px-5 py-2.5 rounded-xl border border-[#7C3AED] text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#7C3AED]/15"
+              className="px-5 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 hover:bg-violet-100 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15"
             >
               Limpar filtros
             </button>
@@ -180,34 +180,34 @@ export function ScenariosPage() {
           {filtered.map((scenario) => (
             <article
               key={scenario.id}
-              className="group rounded-2xl border border-white/10 bg-[#17171F] overflow-hidden flex flex-col"
+              className="group rounded-2xl border border-slate-300 pf-card-surface dark:border-white/10 overflow-hidden flex flex-col"
             >
-              <div className="relative aspect-[4/3] overflow-hidden">
+              <div className="relative aspect-[4/3] overflow-hidden bg-slate-900">
                 <ImageWithFallback
                   src={scenario.image}
                   alt={scenario.title}
                   className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#08080C]/85 via-transparent to-transparent" />
-                <span className="absolute bottom-3 left-4 text-[11px] text-[#A1A1AA]">
+                <span className="absolute bottom-3 left-4 text-[11px] text-[#E4E4E7]">
                   Demonstração · Foto gerada por IA
                 </span>
               </div>
 
               <div className="p-5 flex-1 flex flex-col justify-between gap-4">
                 <div>
-                  <p className="text-xs text-[#A1A1AA]">{scenario.categoryName}</p>
-                  <h2 className="mt-1 font-display text-base font-semibold text-white">
+                  <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">{scenario.categoryName}</p>
+                  <h2 className="mt-1 font-display text-base font-semibold text-slate-950 dark:text-white">
                     {scenario.title}
                   </h2>
-                  <p className="mt-1.5 text-sm text-[#A1A1AA] line-clamp-2">
+                  <p className="mt-1.5 text-sm text-slate-700 dark:text-[#A1A1AA] line-clamp-2">
                     {scenario.description}
                   </p>
                 </div>
 
                 <Link
                   to={`/criar?cenario=${scenario.id}`}
-                  className="inline-flex items-center justify-center px-4 py-3 rounded-xl border border-[#7C3AED] text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#7C3AED]/15 transition-colors"
+                  className="inline-flex items-center justify-center px-4 py-3 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 hover:bg-violet-100 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15 transition-colors"
                 >
                   Usar este cenário
                 </Link>

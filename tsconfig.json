@@ -24,5 +24,17 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["dist"]
+  "exclude": [
+    "dist",
+    "src/components/ui",
+    "src/routes",
+    "src/router.tsx",
+    "src/start.ts",
+    "src/server.ts",
+    "src/routeTree.gen.ts",
+    "src/test",
+    "src/lib",
+    "src/hooks",
+    "vitest.config.ts"
+  ]
 }

@@ -1,3 +1,5 @@
+import type { PreferredAiModelId } from './aiModels';
+
 export const CREDIT_COSTS = {
   generate: 10,
   variation: 10,
@@ -18,6 +20,7 @@ export interface VisualProfileData {
   facialFeatures?: string;
   heightBodyType?: string;
   otherCharacteristics?: string;
+  preferredModel?: PreferredAiModelId;
 }
 
 export interface CreditReservationResult {

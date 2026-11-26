@@ -123,7 +123,7 @@ function ComparisonCard({
   afterImage: string;
 }) {
   return (
-    <article className="rounded-2xl border border-white/10 pf-card-surface overflow-hidden transition-colors hover:border-white/20">
+    <article className="rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface overflow-hidden transition-colors hover:border-slate-400 dark:hover:border-white/20">
       <ImageCompareSlider
         title={title}
         beforeImage={beforeImage}
@@ -133,9 +133,9 @@ function ComparisonCard({
       />
 
       <div className="p-5">
-        <p className="text-xs text-[#A1A1AA]">Demonstração · Foto gerada por IA</p>
-        <h3 className="mt-1.5 font-display text-base font-semibold text-white">{title}</h3>
-        <p className="mt-1 text-sm text-[#A1A1AA]">{scenarioLabel}</p>
+        <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">Demonstração · Foto gerada por IA</p>
+        <h3 className="mt-1.5 font-display text-base font-semibold text-slate-950 dark:text-white">{title}</h3>
+        <p className="mt-1 text-sm text-slate-700 dark:text-[#A1A1AA]">{scenarioLabel}</p>
       </div>
     </article>
   );

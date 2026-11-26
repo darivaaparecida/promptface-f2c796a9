@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import type { PreferredAiModelId } from '../shared/aiModels';
 
 export interface AuthUser {
   id: string;
@@ -10,6 +11,7 @@ export interface AuthUser {
   planId: 'free_trial' | 'pro' | 'premium';
   subscriptionStatus: 'inactive' | 'active' | 'canceled' | 'past_due';
   currentPeriodEnd?: string;
+  preferredModel?: PreferredAiModelId;
   createdAt: string;
 }
 

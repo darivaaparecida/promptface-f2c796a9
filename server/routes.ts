@@ -16,6 +16,12 @@ import {
   validateRenameFolder,
 } from '../src/shared/photoFolders.ts';
 import {
+  MAX_TAGS_PER_PHOTO,
+  normalizeTagList,
+  normalizeTagName,
+} from '../src/shared/photoTags.ts';
+import { normalizePreferredAiModel } from '../src/shared/aiModels.ts';
+import {
   clearSessionCookie,
   hashPassword,
   requireAdmin,
@@ -557,7 +563,13 @@ export function registerApiRoutes(app: Express): void {
   app.get('/api/profile', requireAuth, (req: AuthenticatedRequest, res) => {
     const db = loadDb();
     const userId = req.authUser!.id;
-    const profile = db.visualProfiles[userId] ?? null;
+    const rawProfile = db.visualProfiles[userId] ?? null;
+    const preferredModel = normalizePreferredAiModel(
+      rawProfile?.preferredModel ?? req.authUser?.preferredModel
+    );
+    const profile = rawProfile
+      ? { ...rawProfile, preferredModel }
+      : { preferredModel };
     const faces = db.faceReferences
       .filter((f) => f.userId === userId)
       .map((f) => ({
@@ -565,14 +577,16 @@ export function registerApiRoutes(app: Express): void {
         url: `/media/faces/${f.filename}`,
       }));
 
-    res.json({ profile, faces });
+    res.json({ profile, preferredModel, faces });
   });
 
   app.put('/api/profile', requireAuth, async (req: AuthenticatedRequest, res) => {
     const db = loadDb();
     const userId = req.authUser!.id;
+    const user = db.users.find((u) => u.id === userId);
     const body = req.body ?? {};
     const clean = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 120) : '');
+    const preferredModel = normalizePreferredAiModel(body.preferredModel);
 
     db.visualProfiles[userId] = {
       eyeColor: clean(body.eyeColor),
@@ -583,10 +597,18 @@ export function registerApiRoutes(app: Express): void {
       facialFeatures: clean(body.facialFeatures),
       heightBodyType: clean(body.heightBodyType),
       otherCharacteristics: clean(body.otherCharacteristics),
+      preferredModel,
       updatedAt: new Date().toISOString(),
     };
+    if (user) {
+      user.preferredModel = preferredModel;
+    }
     await saveDb(db);
-    res.json({ profile: db.visualProfiles[userId] });
+    res.json({
+      profile: db.visualProfiles[userId],
+      preferredModel,
+      user: user ? sanitizeUser(user) : undefined,
+    });
   });
 
   app.post('/api/faces', requireAuth, async (req: AuthenticatedRequest, res) => {
@@ -827,11 +849,16 @@ export function registerApiRoutes(app: Express): void {
       })
       .filter((x): x is { base64: string; mimeType: string } => Boolean(x));
 
+    const preferredModel = normalizePreferredAiModel(
+      req.body?.preferredModel ?? db.visualProfiles[user.id]?.preferredModel ?? user.preferredModel
+    );
+
     const result = await generatePortraitWithProvider({
       referenceImages: refParts,
       prompt,
       aspectRatio,
       highQuality: Boolean(req.body?.highQuality),
+      preferredModel,
     });
 
     if (!result.ok || !result.base64) {
@@ -884,6 +911,7 @@ export function registerApiRoutes(app: Express): void {
       provider: result.provider,
       model: result.model,
       favorite: false,
+      tags: [],
       synthIdMarked: result.provider === 'gemini',
       versions: [],
       createdAt: new Date().toISOString(),
@@ -985,10 +1013,15 @@ export function registerApiRoutes(app: Express): void {
       })
       .filter((x): x is { base64: string; mimeType: string } => Boolean(x));
 
+    const preferredModel = normalizePreferredAiModel(
+      db.visualProfiles[user.id]?.preferredModel ?? user.preferredModel
+    );
+
     const result = await editStudioImageWithProvider({
       sourceImage: { base64: sourceB64, mimeType: latestMime },
       faceReferences: faceRefs,
       instruction,
+      preferredModel,
     });
 
     if (!result.ok || !result.base64) {
@@ -1061,6 +1094,7 @@ export function registerApiRoutes(app: Express): void {
       .filter((g) => g.userId === userId)
       .map((g) => ({
         ...g,
+        tags: normalizeTagList(g.tags ?? []),
         url: `/media/generated/${g.filename}`,
         versions: g.versions.map((v) => ({
           ...v,
@@ -1161,6 +1195,117 @@ export function registerApiRoutes(app: Express): void {
 
     await saveDb(db);
     res.json({ updatedIds, folderId: resolvedFolderId });
+  });
+
+  app.patch('/api/generations/:id/tags', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const db = loadDb();
+    const userId = req.authUser!.id;
+    const gen = db.generations.find((g) => g.id === req.params.id && g.userId === userId);
+    if (!gen) {
+      res.status(404).json({ error: 'Fotografia não encontrada.' });
+      return;
+    }
+
+    const rawTags = (req.body as { tags?: unknown } | undefined)?.tags;
+    if (!Array.isArray(rawTags)) {
+      res.status(400).json({ error: 'Lista de tags inválida.' });
+      return;
+    }
+
+    const normalized = normalizeTagList(rawTags);
+    gen.tags = normalized;
+    await saveDb(db);
+    res.json({ tags: normalized });
+  });
+
+  app.post('/api/generations/batch-tags', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const db = loadDb();
+    const userId = req.authUser!.id;
+    const body = (req.body ?? {}) as {
+      generationIds?: unknown;
+      tag?: unknown;
+      action?: unknown;
+    };
+
+    if (!Array.isArray(body.generationIds) || body.generationIds.length === 0) {
+      res.status(400).json({ error: 'Selecione pelo menos uma fotografia.' });
+      return;
+    }
+
+    const normalizedTag = normalizeTagName(body.tag);
+    if (!normalizedTag) {
+      res.status(400).json({ error: 'Informe uma tag válida (2 a 24 caracteres).' });
+      return;
+    }
+
+    const validIds = new Set(
+      body.generationIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    );
+    if (validIds.size === 0) {
+      res.status(400).json({ error: 'Nenhuma fotografia válida informada.' });
+      return;
+    }
+
+    const mode = body.action === 'remove' ? 'remove' : 'add';
+    const updated: Array<{ id: string; tags: string[] }> = [];
+    const tagKey = normalizedTag.toLowerCase();
+
+    for (const gen of db.generations) {
+      if (gen.userId === userId && validIds.has(gen.id)) {
+        const current = normalizeTagList(gen.tags ?? []);
+        let next = current;
+        if (mode === 'remove') {
+          next = current.filter((t) => t.toLowerCase() !== tagKey);
+        } else if (!current.some((t) => t.toLowerCase() === tagKey)) {
+          if (current.length < MAX_TAGS_PER_PHOTO) {
+            next = [...current, normalizedTag];
+          }
+        }
+        gen.tags = next;
+        updated.push({ id: gen.id, tags: next });
+      }
+    }
+
+    await saveDb(db);
+    res.json({ updated, tag: normalizedTag, action: mode });
+  });
+
+  app.post('/api/generations/batch-delete', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const db = loadDb();
+    const userId = req.authUser!.id;
+    const body = (req.body ?? {}) as { generationIds?: unknown };
+
+    if (!Array.isArray(body.generationIds) || body.generationIds.length === 0) {
+      res.status(400).json({ error: 'Selecione pelo menos uma fotografia para excluir.' });
+      return;
+    }
+
+    const validIds = new Set(
+      body.generationIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    );
+    if (validIds.size === 0) {
+      res.status(400).json({ error: 'Nenhuma fotografia válida informada.' });
+      return;
+    }
+
+    const deletedIds: string[] = [];
+    const remaining: typeof db.generations = [];
+
+    for (const gen of db.generations) {
+      if (gen.userId === userId && validIds.has(gen.id)) {
+        deletedIds.push(gen.id);
+        await deleteImageFile(GENERATED_DIR, gen.filename);
+        for (const v of gen.versions) {
+          await deleteImageFile(GENERATED_DIR, v.filename);
+        }
+      } else {
+        remaining.push(gen);
+      }
+    }
+
+    db.generations = remaining;
+    await saveDb(db);
+    res.json({ deletedIds });
   });
 
   app.get('/api/folders', requireAuth, (req: AuthenticatedRequest, res) => {

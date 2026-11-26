@@ -1,18 +1,22 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, Moon, Sun, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { getThemeShortLabel, getThemeToggleLabel } from '../shared/theme';
+import { BrandLogo } from './BrandLogo';
 
 export function Navbar() {
   const { user, logout } = useAuth();
+  const { theme, isDark, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b ${
+    `text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 ${
       isActive
-        ? 'text-white border-[#8B5CF6]'
-        : 'text-[#A1A1AA] border-transparent hover:text-white hover:border-white/30'
+        ? 'text-slate-950 border-violet-700 dark:text-white dark:border-[#8B5CF6]'
+        : 'text-slate-700 border-transparent hover:text-slate-950 hover:border-slate-400 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:border-white/30'
     }`;
 
   const handleLogout = async () => {
@@ -21,15 +25,19 @@ export function Navbar() {
     navigate('/');
   };
 
+  const toggleLabel = getThemeToggleLabel(theme);
+  const toggleShort = getThemeShortLabel(theme);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#08080C]/90 backdrop-blur-md">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
-        {/* Zone 1: Brand wordmark only */}
+    <header className="sticky top-0 z-40 border-b border-slate-300/90 bg-white/95 dark:border-white/10 dark:bg-[#08080C]/90 backdrop-blur-md transition-colors duration-200">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
+        {/* Zone 1: Brand lockup */}
         <Link
           to="/"
-          className="font-display text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6] rounded"
+          aria-label="PromptFace — Página inicial"
+          className="inline-flex items-center whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6] rounded-lg"
         >
-          PromptFace
+          <BrandLogo size="md" />
         </Link>
 
         {/* Zone 2: Concise single-line navigation links */}
@@ -51,8 +59,25 @@ export function Navbar() {
           </NavLink>
         </nav>
 
-        {/* Zone 3: Single primary action */}
-        <div className="hidden md:flex items-center shrink-0">
+        {/* Zone 3: Theme toggle + single primary action */}
+        <div className="hidden md:flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            data-testid="theme-toggle-button"
+            onClick={toggleTheme}
+            aria-pressed={!isDark}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-950 hover:bg-slate-200 hover:border-slate-500 dark:border-white/15 dark:bg-[#17171F] dark:text-white dark:hover:border-[#8B5CF6] dark:hover:bg-white/10 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6]"
+          >
+            {isDark ? (
+              <Sun className="w-4 h-4 text-amber-400 shrink-0" aria-hidden="true" />
+            ) : (
+              <Moon className="w-4 h-4 text-violet-800 shrink-0" aria-hidden="true" />
+            )}
+            <span className="hidden lg:inline">{toggleShort}</span>
+          </button>
+
           {user ? (
             <Link
               to="/meu-espaco"
@@ -70,54 +95,72 @@ export function Navbar() {
           )}
         </div>
 
-        {/* Mobile menu trigger */}
-        <button
-          type="button"
-          onClick={() => setMobileOpen((prev) => !prev)}
-          aria-expanded={mobileOpen}
-          aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
-          className="md:hidden inline-flex items-center justify-center w-11 h-11 rounded-xl border border-white/10 text-white hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]"
-        >
-          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        {/* Mobile controls: theme toggle + menu trigger */}
+        <div className="md:hidden flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            data-testid="theme-toggle-button-mobile"
+            onClick={toggleTheme}
+            aria-pressed={!isDark}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            className="inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-300 bg-slate-100 text-slate-950 hover:bg-slate-200 dark:border-white/15 dark:bg-[#17171F] dark:text-white dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6]"
+          >
+            {isDark ? (
+              <Sun className="w-5 h-5 text-amber-400" aria-hidden="true" />
+            ) : (
+              <Moon className="w-5 h-5 text-violet-800" aria-hidden="true" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileOpen((prev) => !prev)}
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
+            className="inline-flex items-center justify-center w-11 h-11 rounded-xl border border-slate-300 text-slate-950 hover:bg-slate-100 dark:border-white/10 dark:text-white dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6]"
+          >
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-white/10 bg-[#08080C] px-4 py-4 space-y-2">
+        <div className="md:hidden border-t border-slate-300 bg-white dark:border-white/10 dark:bg-[#08080C] px-4 py-4 space-y-2">
           <nav aria-label="Menu móvel" className="flex flex-col space-y-1">
             <Link
               to="/"
               onClick={() => setMobileOpen(false)}
-              className="px-3 py-3 rounded-xl text-sm font-medium text-white hover:bg-white/5"
+              className="px-3 py-3 rounded-xl text-sm font-medium text-slate-950 hover:bg-slate-100 dark:text-white dark:hover:bg-white/5"
             >
               Início
             </Link>
             <Link
               to="/cenarios"
               onClick={() => setMobileOpen(false)}
-              className="px-3 py-3 rounded-xl text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/5"
+              className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
             >
               Cenários
             </Link>
             <Link
               to="/criar"
               onClick={() => setMobileOpen(false)}
-              className="px-3 py-3 rounded-xl text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/5"
+              className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
             >
               Criar Foto
             </Link>
             <Link
               to="/studio"
               onClick={() => setMobileOpen(false)}
-              className="px-3 py-3 rounded-xl text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/5"
+              className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
             >
               PromptFace Studio
             </Link>
             <Link
               to="/planos"
               onClick={() => setMobileOpen(false)}
-              className="px-3 py-3 rounded-xl text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/5"
+              className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
             >
               Planos e Créditos
             </Link>
@@ -126,7 +169,7 @@ export function Navbar() {
                 <Link
                   to="/perfil-visual"
                   onClick={() => setMobileOpen(false)}
-                  className="px-3 py-3 rounded-xl text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/5"
+                  className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
                 >
                   Meu Perfil Visual
                 </Link>
@@ -140,7 +183,7 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="px-3 py-3 text-left rounded-xl text-sm font-medium text-[#A1A1AA] hover:text-white hover:bg-white/5"
+                  className="px-3 py-3 text-left rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
                 >
                   Sair da conta
                 </button>

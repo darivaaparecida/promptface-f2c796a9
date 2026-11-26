@@ -151,7 +151,7 @@ export function AdminPage() {
   if (loading || !data) {
     return (
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12">
-        <div className="h-72 rounded-2xl skeleton-violet border border-white/10" />
+        <div className="h-72 rounded-2xl skeleton-violet border border-slate-300 dark:border-white/10" />
       </div>
     );
   }
@@ -159,21 +159,21 @@ export function AdminPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
       <div>
-        <p className="text-xs font-medium uppercase tracking-wider text-[#8B5CF6]">
+        <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
           Administração restrita
         </p>
-        <h1 className="mt-1 font-display text-3xl font-bold text-white">
+        <h1 className="mt-1 font-display text-3xl font-bold text-slate-950 dark:text-white">
           Painel Administrativo PromptFace
         </h1>
       </div>
 
       {feedback && (
-        <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-3 text-xs text-emerald-200">
+        <div className="rounded-xl border border-emerald-600/45 bg-emerald-50 text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/30 px-4 py-3 text-xs dark:text-emerald-200">
           {feedback}
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-white/10 pb-4">
         {(
           [
             ['metricas', 'Indicadores e Receita'],
@@ -192,7 +192,7 @@ export function AdminPage() {
             className={`px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap shrink-0 ${
               tab === id
                 ? 'bg-[#7C3AED] text-white'
-                : 'bg-[#17171F] text-[#A1A1AA] border border-white/10 hover:text-white'
+                : 'bg-white text-slate-700 border border-slate-300 hover:text-slate-950 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:border-white/10 dark:hover:text-white'
             }`}
           >
             {label}
@@ -215,9 +215,9 @@ export function AdminPage() {
             { label: 'Custo médio / imagem', val: `US$ ${data.metrics.avgCostUsd.toFixed(3)}` },
             { label: 'Lista de espera', val: String(data.waitlistCount) },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-2xl border border-white/10 bg-[#17171F] p-5">
-              <p className="text-xs text-[#A1A1AA]">{kpi.label}</p>
-              <p className="mt-2 font-display text-2xl font-bold text-white font-mono-num">
+            <div key={kpi.label} className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 shadow-sm dark:shadow-none">
+              <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">{kpi.label}</p>
+              <p className="mt-2 font-display text-2xl font-bold text-slate-950 dark:text-white font-mono-num">
                 {kpi.val}
               </p>
             </div>
@@ -226,9 +226,9 @@ export function AdminPage() {
       )}
 
       {tab === 'usuarios' && (
-        <div className="rounded-2xl border border-white/10 bg-[#17171F] overflow-x-auto">
+        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-x-auto shadow-sm dark:shadow-none">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs text-[#A1A1AA]">
+            <thead className="border-b border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-[#A1A1AA]">
               <tr>
                 <th className="py-3.5 px-4">Nome</th>
                 <th className="py-3.5 px-4">E-mail</th>
@@ -237,13 +237,13 @@ export function AdminPage() {
                 <th className="py-3.5 px-4 text-right">Ajustar</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-200 dark:divide-white/5">
               {data.users.map((u) => (
                 <tr key={u.id}>
-                  <td className="py-3 px-4 text-white">{u.name}</td>
-                  <td className="py-3 px-4 text-[#A1A1AA]">{u.email}</td>
-                  <td className="py-3 px-4 text-xs uppercase text-[#A1A1AA]">{u.planId}</td>
-                  <td className="py-3 px-4 text-right font-mono-num text-white">{u.credits}</td>
+                  <td className="py-3 px-4 text-slate-950 dark:text-white">{u.name}</td>
+                  <td className="py-3 px-4 text-slate-700 dark:text-[#A1A1AA]">{u.email}</td>
+                  <td className="py-3 px-4 text-xs uppercase text-slate-700 dark:text-[#A1A1AA]">{u.planId}</td>
+                  <td className="py-3 px-4 text-right font-mono-num text-slate-950 dark:text-white">{u.credits}</td>
                   <td className="py-3 px-4 text-right space-x-2">
                     <button
                       type="button"
@@ -255,7 +255,7 @@ export function AdminPage() {
                     <button
                       type="button"
                       onClick={() => adjustCredits(u.id, -10)}
-                      className="px-2.5 py-1 rounded border border-white/15 text-xs text-[#A1A1AA]"
+                      className="px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white"
                     >
                       -10
                     </button>
@@ -271,25 +271,25 @@ export function AdminPage() {
         <div className="space-y-6">
           <form
             onSubmit={handleCreateScenario}
-            className="rounded-2xl border border-white/10 bg-[#17171F] p-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end"
+            className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end shadow-sm dark:shadow-none"
           >
             <div>
-              <label className="block text-xs text-[#A1A1AA] mb-1">Título</label>
+              <label className="block text-xs text-slate-700 dark:text-[#A1A1AA] mb-1">Título</label>
               <input
                 type="text"
                 required
                 value={newScenarioTitle}
                 onChange={(e) => setNewScenarioTitle(e.target.value)}
                 placeholder="Ex.: Pôr do sol em Tóquio"
-                className="w-full px-3 py-2 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
               />
             </div>
             <div>
-              <label className="block text-xs text-[#A1A1AA] mb-1">Categoria</label>
+              <label className="block text-xs text-slate-700 dark:text-[#A1A1AA] mb-1">Categoria</label>
               <select
                 value={newScenarioCategory}
                 onChange={(e) => setNewScenarioCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
               >
                 {data.categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -299,14 +299,14 @@ export function AdminPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-[#A1A1AA] mb-1">Descrição</label>
+              <label className="block text-xs text-slate-700 dark:text-[#A1A1AA] mb-1">Descrição</label>
               <input
                 type="text"
                 required
                 value={newScenarioDesc}
                 onChange={(e) => setNewScenarioDesc(e.target.value)}
                 placeholder="Breve descrição do cenário"
-                className="w-full px-3 py-2 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
               />
             </div>
             <button
@@ -317,9 +317,9 @@ export function AdminPage() {
             </button>
           </form>
 
-          <div className="rounded-2xl border border-white/10 bg-[#17171F] overflow-x-auto">
+          <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-x-auto shadow-sm dark:shadow-none">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-xs text-[#A1A1AA]">
+              <thead className="border-b border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-[#A1A1AA]">
                 <tr>
                   <th className="py-3 px-4">Categoria</th>
                   <th className="py-3 px-4">Título</th>
@@ -327,19 +327,19 @@ export function AdminPage() {
                   <th className="py-3 px-4 text-right">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-slate-200 dark:divide-white/5">
                 {data.scenarios.slice(0, 30).map((s) => (
                   <tr key={s.id}>
-                    <td className="py-2.5 px-4 text-xs text-[#A1A1AA]">{s.categoryName}</td>
-                    <td className="py-2.5 px-4 text-white">{s.title}</td>
-                    <td className="py-2.5 px-4 text-xs text-white">
+                    <td className="py-2.5 px-4 text-xs text-slate-700 dark:text-[#A1A1AA]">{s.categoryName}</td>
+                    <td className="py-2.5 px-4 text-slate-950 dark:text-white">{s.title}</td>
+                    <td className="py-2.5 px-4 text-xs text-slate-950 dark:text-white">
                       {s.active ? 'Ativo' : 'Desativado'}
                     </td>
                     <td className="py-2.5 px-4 text-right">
                       <button
                         type="button"
                         onClick={() => toggleScenarioActive(s)}
-                        className="px-3 py-1 rounded border border-white/15 text-xs text-white hover:bg-white/5"
+                        className="px-3 py-1 rounded border border-slate-300 text-xs text-slate-900 hover:bg-slate-100 dark:border-white/15 dark:text-white dark:hover:bg-white/5"
                       >
                         {s.active ? 'Desativar' : 'Ativar'}
                       </button>
@@ -355,23 +355,23 @@ export function AdminPage() {
       {tab === 'planos' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {data.plans.map((p) => (
-            <div key={p.id} className="rounded-2xl border border-white/10 bg-[#17171F] p-6 space-y-4">
-              <h2 className="font-display text-lg font-bold text-white">{p.name}</h2>
-              <p className="text-sm text-[#A1A1AA] font-mono-num">
+            <div key={p.id} className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none">
+              <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">{p.name}</h2>
+              <p className="text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num">
                 Preço: {p.priceFormatted} · Créditos: {p.creditsMonthly} ({p.maxPhotosMonthly} fotos)
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => updatePlan(p, p.priceBrl, p.creditsMonthly + 50)}
-                  className="px-3 py-2 rounded-xl border border-[#7C3AED] text-xs text-white"
+                  className="px-3 py-2 rounded-xl border border-violet-700 text-xs font-medium text-violet-950 hover:bg-violet-50 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15"
                 >
                   +50 créditos mensais
                 </button>
                 <button
                   type="button"
                   onClick={() => updatePlan(p, p.priceBrl, Math.max(50, p.creditsMonthly - 50))}
-                  className="px-3 py-2 rounded-xl border border-white/15 text-xs text-[#A1A1AA]"
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-700 hover:text-slate-950 dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white"
                 >
                   -50 créditos mensais
                 </button>
@@ -382,9 +382,9 @@ export function AdminPage() {
       )}
 
       {tab === 'geracoes' && (
-        <div className="rounded-2xl border border-white/10 bg-[#17171F] overflow-x-auto">
+        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-x-auto shadow-sm dark:shadow-none">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs text-[#A1A1AA]">
+            <thead className="border-b border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-[#A1A1AA]">
               <tr>
                 <th className="py-3 px-4">Data</th>
                 <th className="py-3 px-4">Cenário</th>
@@ -392,17 +392,17 @@ export function AdminPage() {
                 <th className="py-3 px-4 text-right">Custo API</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-200 dark:divide-white/5">
               {data.generations.map((g) => (
                 <tr key={g.id}>
-                  <td className="py-3 px-4 text-xs text-[#A1A1AA] font-mono-num">
+                  <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
                     {new Date(g.createdAt).toLocaleString('pt-BR')}
                   </td>
-                  <td className="py-3 px-4 text-white">{g.scenarioTitle}</td>
-                  <td className="py-3 px-4 text-xs text-[#A1A1AA]">
+                  <td className="py-3 px-4 text-slate-950 dark:text-white">{g.scenarioTitle}</td>
+                  <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA]">
                     {g.provider} · {g.model}
                   </td>
-                  <td className="py-3 px-4 text-right font-mono-num text-white">
+                  <td className="py-3 px-4 text-right font-mono-num text-slate-950 dark:text-white">
                     US$ {(g.estimatedCostUsd || 0).toFixed(3)}
                   </td>
                 </tr>
@@ -416,16 +416,16 @@ export function AdminPage() {
         <div className="space-y-6">
           <form
             onSubmit={handleCreateNotice}
-            className="rounded-2xl border border-white/10 bg-[#17171F] p-6 space-y-4"
+            className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none"
           >
-            <h2 className="font-display text-base font-semibold text-white">Publicar novidade</h2>
+            <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">Publicar novidade</h2>
             <input
               type="text"
               required
               value={newNoticeTitle}
               onChange={(e) => setNewNoticeTitle(e.target.value)}
               placeholder="Título do aviso"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
             />
             <textarea
               required
@@ -433,7 +433,7 @@ export function AdminPage() {
               value={newNoticeMsg}
               onChange={(e) => setNewNoticeMsg(e.target.value)}
               placeholder="Mensagem para os usuários"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
             />
             <button
               type="submit"
@@ -447,16 +447,16 @@ export function AdminPage() {
             {data.notices.map((n) => (
               <div
                 key={n.id}
-                className="rounded-2xl border border-white/10 bg-[#17171F] p-5 flex items-start justify-between gap-4"
+                className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 flex items-start justify-between gap-4 shadow-sm dark:shadow-none"
               >
                 <div>
-                  <h3 className="font-display text-sm font-semibold text-white">{n.title}</h3>
-                  <p className="mt-1 text-xs text-[#A1A1AA]">{n.message}</p>
+                  <h3 className="font-display text-sm font-semibold text-slate-950 dark:text-white">{n.title}</h3>
+                  <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA]">{n.message}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => deleteNotice(n.id)}
-                  className="text-xs text-red-300 hover:underline shrink-0"
+                  className="text-xs font-medium text-red-700 dark:text-red-300 hover:underline shrink-0"
                 >
                   Remover
                 </button>
@@ -467,14 +467,14 @@ export function AdminPage() {
       )}
 
       {tab === 'moderacao' && (
-        <div className="rounded-2xl border border-white/10 bg-[#17171F] overflow-x-auto">
+        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-x-auto shadow-sm dark:shadow-none">
           {data.moderationLogs.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#A1A1AA]">
+            <div className="p-8 text-center text-sm text-slate-700 dark:text-[#A1A1AA]">
               Nenhum bloqueio de moderação registrado.
             </div>
           ) : (
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-xs text-[#A1A1AA]">
+              <thead className="border-b border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-[#A1A1AA]">
                 <tr>
                   <th className="py-3 px-4">Data</th>
                   <th className="py-3 px-4">Usuário</th>
@@ -482,15 +482,15 @@ export function AdminPage() {
                   <th className="py-3 px-4">Motivo</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-slate-200 dark:divide-white/5">
                 {data.moderationLogs.map((m) => (
                   <tr key={m.id}>
-                    <td className="py-3 px-4 text-xs text-[#A1A1AA] font-mono-num">
+                    <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
                       {new Date(m.createdAt).toLocaleString('pt-BR')}
                     </td>
-                    <td className="py-3 px-4 text-xs text-white">{m.userEmail || '—'}</td>
-                    <td className="py-3 px-4 text-xs text-[#A1A1AA]">{m.inputSnippet}</td>
-                    <td className="py-3 px-4 text-xs text-red-300">{m.reason}</td>
+                    <td className="py-3 px-4 text-xs text-slate-950 dark:text-white">{m.userEmail || '—'}</td>
+                    <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA]">{m.inputSnippet}</td>
+                    <td className="py-3 px-4 text-xs text-red-700 dark:text-red-300">{m.reason}</td>
                   </tr>
                 ))}
               </tbody>

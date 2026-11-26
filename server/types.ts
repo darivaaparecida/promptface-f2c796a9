@@ -1,5 +1,6 @@
 import type { CategoryItem, PlanDefinition, ScenarioItem } from '../src/shared/catalog.ts';
 import type { VisualProfileData } from '../src/shared/rules.ts';
+import type { PreferredAiModelId } from '../src/shared/aiModels.ts';
 
 export interface UserRecord {
   id: string;
@@ -17,6 +18,7 @@ export interface UserRecord {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   currentPeriodEnd?: string;
+  preferredModel?: PreferredAiModelId;
   createdAt: string;
 }
 
@@ -58,6 +60,7 @@ export interface GenerationRecord {
   model: string;
   favorite: boolean;
   folderId?: string;
+  tags?: string[];
   synthIdMarked: boolean;
   versions: StudioVersionRecord[];
   createdAt: string;

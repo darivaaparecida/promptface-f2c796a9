@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Download, History, MoveHorizontal, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { CREDIT_COSTS } from '../shared/rules';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ImageCompareSlider } from '../components/BeforeAfterSlider';
@@ -39,6 +40,7 @@ const STUDIO_LOADING_MESSAGES = [
 
 export function StudioPage() {
   const { user, apiFetch, updateCredits, getMediaUrl } = useAuth();
+  const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const requestedId = searchParams.get('foto');
 
@@ -127,7 +129,13 @@ export function StudioPage() {
         if (data.notConfigured) {
           setBetaNotice(true);
         } else {
-          setErrorMsg(data.error || 'Não foi possível aplicar a edição.');
+          const errText = data.error || 'Não foi possível aplicar a edição.';
+          setErrorMsg(errText);
+          addToast({
+            variant: 'error',
+            title: 'Falha ao editar no Studio',
+            description: errText,
+          });
         }
         return;
       }
@@ -138,6 +146,11 @@ export function StudioPage() {
         );
         setActiveVersionUrl(data.version.url);
         setInstruction('');
+        addToast({
+          variant: 'success',
+          title: 'Edição no Studio concluída!',
+          description: `Nova versão criada para ${data.generation.scenarioTitle}.`,
+        });
       }
     } finally {
       setEditing(false);
@@ -152,10 +165,10 @@ export function StudioPage() {
           <div className="h-9 w-72 rounded-xl skeleton-violet" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-7 aspect-[3/4] rounded-2xl skeleton-violet border border-white/10" />
+          <div className="lg:col-span-7 aspect-[3/4] rounded-2xl skeleton-violet border border-slate-300 dark:border-white/10" />
           <div className="lg:col-span-5 space-y-6">
-            <div className="h-80 rounded-2xl skeleton-violet border border-white/10" />
-            <div className="h-44 rounded-2xl skeleton-violet border border-white/10" />
+            <div className="h-80 rounded-2xl skeleton-violet border border-slate-300 dark:border-white/10" />
+            <div className="h-44 rounded-2xl skeleton-violet border border-slate-300 dark:border-white/10" />
           </div>
         </div>
       </div>
@@ -165,10 +178,10 @@ export function StudioPage() {
   if (generations.length === 0) {
     return (
       <div className="mx-auto max-w-4xl px-4 sm:px-6 py-16">
-        <div className="rounded-2xl border border-white/10 bg-[#17171F] p-10 text-center space-y-4">
-          <SlidersHorizontal className="w-8 h-8 text-[#8B5CF6] mx-auto" aria-hidden="true" />
-          <h1 className="font-display text-2xl font-bold text-white">PromptFace Studio</h1>
-          <p className="text-sm text-[#A1A1AA] max-w-md mx-auto">
+        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-10 text-center space-y-4 shadow-sm dark:shadow-none">
+          <SlidersHorizontal className="w-8 h-8 text-violet-700 dark:text-[#8B5CF6] mx-auto" aria-hidden="true" />
+          <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">PromptFace Studio</h1>
+          <p className="text-sm text-slate-700 dark:text-[#A1A1AA] max-w-md mx-auto">
             Você ainda não possui fotos geradas para editar no Studio. Gere sua primeira fotografia realista e depois volte aqui para ajustar roupa, iluminação, pose ou cenário por texto.
           </p>
           <Link
@@ -188,44 +201,44 @@ export function StudioPage() {
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-[#8B5CF6]">
+          <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
             Edição por texto com preservação de identidade
           </p>
-          <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold text-white">
+          <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white">
             PromptFace Studio
           </h1>
         </div>
-        <p className="text-sm text-[#A1A1AA] font-mono-num">
-          Saldo: <strong className="text-white">{user?.credits ?? 0} créditos</strong> · Edição:{' '}
-          <strong className="text-white">{CREDIT_COSTS.studio_edit} créditos</strong>
+        <p className="text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+          Saldo: <strong className="text-slate-950 dark:text-white">{user?.credits ?? 0} créditos</strong> · Edição:{' '}
+          <strong className="text-slate-950 dark:text-white">{CREDIT_COSTS.studio_edit} créditos</strong>
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Canvas & Versions */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-[#17171F] overflow-hidden relative">
+          <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-hidden relative shadow-sm dark:shadow-none">
             {editing ? (
               <div
                 role="status"
                 aria-live="polite"
                 aria-label="Gerando edição da imagem no Studio"
-                className="aspect-[3/4] skeleton-violet border border-[#7C3AED]/40 flex flex-col items-center justify-center p-8 text-center space-y-5"
+                className="aspect-[3/4] skeleton-violet border border-violet-500/45 flex flex-col items-center justify-center p-8 text-center space-y-5"
               >
-                <div className="w-14 h-14 rounded-2xl bg-[#08080C]/70 border border-[#7C3AED]/50 flex items-center justify-center shadow-lg shadow-[#7C3AED]/20">
-                  <Sparkles className="w-6 h-6 text-[#8B5CF6] animate-pulse" aria-hidden="true" />
+                <div className="w-14 h-14 rounded-2xl bg-white/90 dark:bg-[#08080C]/70 border border-violet-500/50 flex items-center justify-center shadow-lg shadow-[#7C3AED]/20">
+                  <Sparkles className="w-6 h-6 text-violet-700 dark:text-[#8B5CF6] animate-pulse" aria-hidden="true" />
                 </div>
                 <div className="space-y-2 max-w-sm">
-                  <p className="font-display text-lg font-semibold text-white">
+                  <p className="font-display text-lg font-semibold text-slate-950 dark:text-white">
                     {STUDIO_LOADING_MESSAGES[loadingMsgIdx]}
                   </p>
-                  <p className="text-xs text-[#A1A1AA]">
+                  <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
                     Mantendo sua identidade facial e todos os elementos não alterados da cena.
                   </p>
                 </div>
                 <div className="w-full max-w-xs space-y-2.5 pt-2" aria-hidden="true">
-                  <div className="h-2.5 w-full rounded-full skeleton-violet border border-white/10" />
-                  <div className="h-2.5 w-4/5 mx-auto rounded-full skeleton-violet border border-white/10" />
+                  <div className="h-2.5 w-full rounded-full skeleton-violet border border-slate-300 dark:border-white/10" />
+                  <div className="h-2.5 w-4/5 mx-auto rounded-full skeleton-violet border border-slate-300 dark:border-white/10" />
                 </div>
               </div>
             ) : compareMode && selectedGen && canCompare ? (
@@ -253,7 +266,7 @@ export function StudioPage() {
                   />
                 )}
                 {imageReady && (
-                  <span className="absolute bottom-3 left-3 text-xs text-white bg-[#08080C]/80 px-2.5 py-1 rounded-md border border-white/15">
+                  <span className="absolute bottom-3 left-3 text-xs text-white bg-[#08080C]/85 px-2.5 py-1 rounded-md border border-white/15">
                     Foto gerada por IA
                   </span>
                 )}
@@ -266,14 +279,14 @@ export function StudioPage() {
               {editing ? (
                 <div
                   aria-hidden="true"
-                  className="h-10 w-56 rounded-xl skeleton-violet border border-white/10"
+                  className="h-10 w-56 rounded-xl skeleton-violet border border-slate-300 dark:border-white/10"
                 />
               ) : (
                 <>
                   <a
                     href={getMediaUrl(displayUrl)}
                     download={`promptface-studio-${selectedGen.id}.png`}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#7C3AED] text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#7C3AED]/15"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 bg-white hover:bg-violet-50 dark:border-[#7C3AED] dark:bg-transparent dark:text-white dark:hover:bg-[#7C3AED]/15"
                   >
                     <Download className="w-4 h-4" aria-hidden="true" />
                     Baixar versão selecionada
@@ -287,7 +300,7 @@ export function StudioPage() {
                       className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold uppercase tracking-wider transition-colors ${
                         compareMode
                           ? 'bg-[#7C3AED] border-[#A855F7] text-white'
-                          : 'border-white/15 bg-[#17171F] text-[#A1A1AA] hover:text-white'
+                          : 'border-slate-300 bg-white text-slate-800 hover:text-slate-950 dark:border-white/15 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:text-white'
                       }`}
                     >
                       <MoveHorizontal className="w-4 h-4" aria-hidden="true" />
@@ -302,9 +315,9 @@ export function StudioPage() {
 
         {/* Right: Controls & History */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="rounded-2xl border border-white/10 bg-[#17171F] p-6 space-y-5">
+          <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-5 shadow-sm dark:shadow-none">
             <div className="space-y-1.5">
-              <label htmlFor="studio-photo-select" className="block text-xs text-[#A1A1AA]">
+              <label htmlFor="studio-photo-select" className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
                 Fotografia ativa
               </label>
               <select
@@ -321,7 +334,7 @@ export function StudioPage() {
                     setActiveVersionUrl(latest);
                   }
                 }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
               >
                 {generations.map((g) => (
                   <option key={g.id} value={g.id}>
@@ -333,7 +346,7 @@ export function StudioPage() {
 
             <form onSubmit={handleApplyEdit} className="space-y-4">
               <div className="space-y-1.5">
-                <label htmlFor="studio-instruction" className="block text-xs text-[#A1A1AA]">
+                <label htmlFor="studio-instruction" className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA]">
                   O que você quer alterar nesta foto?
                 </label>
                 <textarea
@@ -342,19 +355,19 @@ export function StudioPage() {
                   value={instruction}
                   onChange={(e) => setInstruction(e.target.value)}
                   placeholder="Ex.: Trocar minha roupa por uma jaqueta de couro preta"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080C] border border-white/15 text-sm text-white placeholder:text-[#A1A1AA]/55 focus:outline-none focus:border-[#8B5CF6]"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 focus:outline-none focus:border-violet-700 dark:bg-[#08080C] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/55 dark:focus:border-[#8B5CF6]"
                 />
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs text-[#A1A1AA]">Sugestões rápidas:</p>
+                <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">Sugestões rápidas:</p>
                 <div className="flex flex-wrap gap-2">
                   {QUICK_EDITS.map((example) => (
                     <button
                       key={example}
                       type="button"
                       onClick={() => setInstruction(example)}
-                      className="px-2.5 py-1.5 rounded-lg bg-[#08080C] border border-white/10 text-xs text-[#A1A1AA] hover:text-white hover:border-[#7C3AED] transition-colors text-left"
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-800 hover:text-slate-950 hover:border-violet-700 dark:bg-[#08080C] dark:border-white/10 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:border-[#7C3AED] transition-colors text-left"
                     >
                       {example}
                     </button>
@@ -363,13 +376,13 @@ export function StudioPage() {
               </div>
 
               {errorMsg && (
-                <div className="rounded-xl bg-red-950/40 border border-red-500/40 px-4 py-3 text-xs text-red-200">
+                <div className="rounded-xl bg-red-50 border border-red-600/45 text-red-950 dark:bg-red-950/40 dark:border-red-500/40 px-4 py-3 text-xs dark:text-red-200">
                   {errorMsg}
                 </div>
               )}
 
               {betaNotice && (
-                <div className="rounded-xl border border-[#7C3AED]/50 bg-[#08080C] px-4 py-3 text-xs text-[#A1A1AA]">
+                <div className="rounded-xl border border-violet-500/50 bg-violet-50 text-slate-900 dark:border-[#7C3AED]/50 dark:bg-[#08080C] px-4 py-3 text-xs dark:text-[#A1A1AA]">
                   Edição no Studio em breve — estamos ativando os servidores de imagem. Nenhum crédito foi descontado.
                 </div>
               )}
@@ -388,10 +401,10 @@ export function StudioPage() {
 
           {/* Version history */}
           {selectedGen && (
-            <div className="rounded-2xl border border-white/10 bg-[#17171F] p-6 space-y-4">
+            <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none">
               <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-[#8B5CF6]" aria-hidden="true" />
-                <h2 className="font-display text-sm font-semibold text-white">
+                <History className="w-4 h-4 text-violet-700 dark:text-[#8B5CF6]" aria-hidden="true" />
+                <h2 className="font-display text-sm font-semibold text-slate-950 dark:text-white">
                   Histórico de versões ({1 + selectedGen.versions.length})
                 </h2>
               </div>
@@ -402,11 +415,11 @@ export function StudioPage() {
                   onClick={() => setActiveVersionUrl(selectedGen.url)}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs transition-colors ${
                     displayUrl === selectedGen.url
-                      ? 'border-[#7C3AED] bg-[#7C3AED]/15 text-white'
-                      : 'border-white/10 bg-[#08080C] text-[#A1A1AA] hover:text-white'
+                      ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
+                      : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
                   }`}
                 >
-                  <span className="font-medium text-white block">Versão original</span>
+                  <span className="font-semibold text-slate-950 dark:text-white block">Versão original</span>
                   <span className="text-[11px]">{selectedGen.scenarioTitle}</span>
                 </button>
 
@@ -417,11 +430,11 @@ export function StudioPage() {
                     onClick={() => setActiveVersionUrl(ver.url)}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs transition-colors ${
                       displayUrl === ver.url
-                        ? 'border-[#7C3AED] bg-[#7C3AED]/15 text-white'
-                        : 'border-white/10 bg-[#08080C] text-[#A1A1AA] hover:text-white'
+                        ? 'border-violet-700 bg-violet-100 text-slate-950 dark:border-[#7C3AED] dark:bg-[#7C3AED]/15 dark:text-white'
+                        : 'border-slate-300 bg-slate-50 text-slate-700 hover:text-slate-950 dark:border-white/10 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
                     }`}
                   >
-                    <span className="font-medium text-white block">Edição v{idx + 1}</span>
+                    <span className="font-semibold text-slate-950 dark:text-white block">Edição v{idx + 1}</span>
                     <span className="text-[11px] line-clamp-1">{ver.instruction}</span>
                   </button>
                 ))}

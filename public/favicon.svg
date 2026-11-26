@@ -1,0 +1,48 @@
+<svg viewBox="0 0 100 112" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pf-stem" x1="18" y1="36" x2="18" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6D28D9" />
+      <stop offset="55%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#C084FC" />
+    </linearGradient>
+    <linearGradient id="pf-stem-shadow" x1="4" y1="36" x2="33" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E0758" />
+      <stop offset="100%" stop-color="#43129E" />
+    </linearGradient>
+    <linearGradient id="pf-arm" x1="41" y1="86" x2="94" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4300FF" />
+      <stop offset="55%" stop-color="#7C22FF" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+    <linearGradient id="pf-arm-shade" x1="72" y1="32" x2="94" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B0764" stop-opacity="0.65" />
+      <stop offset="100%" stop-color="#7E22CE" stop-opacity="0.1" />
+    </linearGradient>
+    <linearGradient id="pf-top" x1="8" y1="38" x2="94" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4A00FF" />
+      <stop offset="48%" stop-color="#7E3AF2" />
+      <stop offset="82%" stop-color="#B845FF" />
+      <stop offset="100%" stop-color="#D946EF" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M40 89 C58 80 78 69 90 59 C96 54 97 45 94 37 L74 32 C64 42 54 47 47 51 C41 55 40 60 40 68 Z"
+    fill="url(#pf-arm)"
+  />
+  <path
+    d="M66 40 C75 39 85 43 92 54 C96 49 96 42 94 37 L74 32 C71 35 68 38 66 40 Z"
+    fill="url(#pf-arm-shade)"
+  />
+  <path
+    d="M3 108 L3 58 C11 42 21 34 32 32 L32 82 C32 89 27 94 19 99 Z"
+    fill="url(#pf-stem)"
+  />
+  <path
+    d="M3 67 C12 56 21 49 32 46 L32 32 C21 34 11 42 3 58 Z"
+    fill="url(#pf-stem-shadow)"
+  />
+  <path
+    d="M3 62 C3 44 13 33 32 32 C53 31 71 33 83 38 C90 41 94 49 92 57 C96 50 97 42 96 34 C94 14 72 5 37 5 C12 5 3 19 3 43 Z"
+    fill="url(#pf-top)"
+  />
+</svg>

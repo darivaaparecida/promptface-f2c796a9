@@ -162,6 +162,7 @@ export function sanitizeUser(user: UserRecord) {
     planId: user.planId,
     subscriptionStatus: user.subscriptionStatus,
     currentPeriodEnd: user.currentPeriodEnd,
+    preferredModel: user.preferredModel || 'auto',
     createdAt: user.createdAt,
   };
 }

@@ -1,4 +1,8 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import {
+  resolveGenerationModelPreference,
+  type PreferredAiModelId,
+} from '../../src/shared/aiModels.ts';
 
 export interface ReferenceImagePart {
   base64: string;
@@ -336,11 +340,27 @@ export async function generatePortraitWithProvider(params: {
   prompt: string;
   aspectRatio: string;
   highQuality?: boolean;
+  preferredModel?: PreferredAiModelId;
 }): Promise<ImageGenerationResult> {
-  const geminiResult = await generateWithGemini(params);
+  const pref = resolveGenerationModelPreference(params.preferredModel, params.highQuality);
+
+  if (pref.preferFal && getFalKey()) {
+    const falFirst = await generateWithFluxKontext({
+      referenceImages: params.referenceImages,
+      prompt: params.prompt,
+    });
+    if (falFirst.ok) return falFirst;
+  }
+
+  const geminiResult = await generateWithGemini({
+    referenceImages: params.referenceImages,
+    prompt: params.prompt,
+    aspectRatio: params.aspectRatio,
+    highQuality: pref.highQuality,
+  });
   if (geminiResult.ok) return geminiResult;
 
-  if (getFalKey()) {
+  if (!pref.preferFal && getFalKey()) {
     const fallbackResult = await generateWithFluxKontext({
       referenceImages: params.referenceImages,
       prompt: params.prompt,
@@ -355,6 +375,7 @@ export async function editStudioImageWithProvider(params: {
   sourceImage: ReferenceImagePart;
   faceReferences: ReferenceImagePart[];
   instruction: string;
+  preferredModel?: PreferredAiModelId;
 }): Promise<ImageGenerationResult> {
   const editPrompt = `Edite a primeira imagem aplicando exclusivamente esta alteração: "${params.instruction}". Preserve exatamente o rosto, identidade facial, feições, tom de pele e tudo que não foi solicitado para mudar. Use as demais fotos apenas como referência adicional da identidade facial da pessoa. Fotografia profissional realista, luz natural, pele real com textura, sem aparência de desenho ou CGI.`;
 
@@ -364,5 +385,6 @@ export async function editStudioImageWithProvider(params: {
     prompt: editPrompt,
     aspectRatio: '3:4',
     highQuality: false,
+    preferredModel: params.preferredModel,
   });
 }

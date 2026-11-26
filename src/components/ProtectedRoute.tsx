@@ -15,7 +15,7 @@ export function ProtectedRoute({
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
-        <div className="h-64 rounded-2xl skeleton-violet border border-white/10" />
+        <div className="h-64 rounded-2xl skeleton-violet border border-slate-300 dark:border-white/10" />
       </div>
     );
   }
