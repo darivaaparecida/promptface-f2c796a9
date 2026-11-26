@@ -9,9 +9,16 @@ export interface ReferenceImagePart {
   mimeType: string;
 }
 
+export interface FalRequestGate {
+  tryAcquire: () => boolean;
+  commit: () => Promise<void> | void;
+  release: () => void;
+}
+
 export interface ImageGenerationResult {
   ok: boolean;
   notConfigured?: boolean;
+  quotaExhausted?: boolean;
   base64?: string;
   mimeType?: string;
   provider: string;
@@ -35,6 +42,14 @@ function getGeminiKey(): string | null {
 function getFalKey(): string | null {
   const key = process.env.FAL_API_KEY?.trim();
   return key || null;
+}
+
+export function isGeminiConfigured(): boolean {
+  return Boolean(getGeminiKey());
+}
+
+export function isFalConfigured(): boolean {
+  return Boolean(getFalKey());
 }
 
 export function isImageProviderConfigured(): boolean {
@@ -90,6 +105,14 @@ export async function enhancePromptWithAi(rawDescription: string): Promise<{
 }> {
   const ai = createGeminiClient();
   if (!ai) {
+    if (getFalKey()) {
+      return {
+        ok: false,
+        notConfigured: false,
+        error:
+          'A melhoria automática de descrição usa Gemini. Você pode ajustar o texto diretamente e gerar sua foto normalmente.',
+      };
+    }
     return {
       ok: false,
       notConfigured: true,
@@ -264,6 +287,7 @@ async function generateWithGemini(params: {
 async function generateWithFluxKontext(params: {
   referenceImages: ReferenceImagePart[];
   prompt: string;
+  falGate?: FalRequestGate;
 }): Promise<ImageGenerationResult> {
   const falKey = getFalKey();
   if (!falKey) {
@@ -273,6 +297,18 @@ async function generateWithFluxKontext(params: {
       provider: 'fal-flux-kontext',
       model: 'flux-pro/kontext',
       estimatedCostUsd: 0,
+    };
+  }
+
+  if (params.falGate && !params.falGate.tryAcquire()) {
+    return {
+      ok: false,
+      quotaExhausted: true,
+      provider: 'fal-flux-kontext',
+      model: 'flux-pro/kontext',
+      estimatedCostUsd: 0,
+      error:
+        'Limite de proteção atingido: as imagens gratuitas configuradas na fal.ai já foram utilizadas para evitar qualquer cobrança.',
     };
   }
 
@@ -293,6 +329,17 @@ async function generateWithFluxKontext(params: {
     });
 
     if (!res.ok) {
+      if (res.status === 402 || res.status === 403) {
+        return {
+          ok: false,
+          quotaExhausted: true,
+          provider: 'fal-flux-kontext',
+          model: 'flux-pro/kontext',
+          estimatedCostUsd: 0,
+          error:
+            'A API da fal.ai exige saldo positivo em Créditos (as 12 imagens gratuitas do painel valem apenas no Playground do site da fal.ai). Nenhuma cobrança foi realizada e seus créditos do app foram estornados.',
+        };
+      }
       return {
         ok: false,
         provider: 'fal-flux-kontext',
@@ -314,6 +361,11 @@ async function generateWithFluxKontext(params: {
       };
     }
 
+    // Commit free-allowance usage as soon as fal.ai returns a generated image
+    if (params.falGate) {
+      await params.falGate.commit();
+    }
+
     const imgRes = await fetch(imageUrl);
     const arrayBuf = await imgRes.arrayBuffer();
     return {
@@ -332,6 +384,8 @@ async function generateWithFluxKontext(params: {
       estimatedCostUsd: 0,
       error: err instanceof Error ? err.message : 'Falha no provedor reserva.',
     };
+  } finally {
+    params.falGate?.release();
   }
 }
 
@@ -341,6 +395,7 @@ export async function generatePortraitWithProvider(params: {
   aspectRatio: string;
   highQuality?: boolean;
   preferredModel?: PreferredAiModelId;
+  falGate?: FalRequestGate;
 }): Promise<ImageGenerationResult> {
   const pref = resolveGenerationModelPreference(params.preferredModel, params.highQuality);
 
@@ -348,8 +403,9 @@ export async function generatePortraitWithProvider(params: {
     const falFirst = await generateWithFluxKontext({
       referenceImages: params.referenceImages,
       prompt: params.prompt,
+      falGate: params.falGate,
     });
-    if (falFirst.ok) return falFirst;
+    if (falFirst.ok || falFirst.quotaExhausted) return falFirst;
   }
 
   const geminiResult = await generateWithGemini({
@@ -364,8 +420,9 @@ export async function generatePortraitWithProvider(params: {
     const fallbackResult = await generateWithFluxKontext({
       referenceImages: params.referenceImages,
       prompt: params.prompt,
+      falGate: params.falGate,
     });
-    if (fallbackResult.ok) return fallbackResult;
+    if (fallbackResult.ok || fallbackResult.quotaExhausted) return fallbackResult;
   }
 
   return geminiResult;
@@ -376,6 +433,7 @@ export async function editStudioImageWithProvider(params: {
   faceReferences: ReferenceImagePart[];
   instruction: string;
   preferredModel?: PreferredAiModelId;
+  falGate?: FalRequestGate;
 }): Promise<ImageGenerationResult> {
   const editPrompt = `Edite a primeira imagem aplicando exclusivamente esta alteração: "${params.instruction}". Preserve exatamente o rosto, identidade facial, feições, tom de pele e tudo que não foi solicitado para mudar. Use as demais fotos apenas como referência adicional da identidade facial da pessoa. Fotografia profissional realista, luz natural, pele real com textura, sem aparência de desenho ou CGI.`;
 
@@ -386,5 +444,6 @@ export async function editStudioImageWithProvider(params: {
     aspectRatio: '3:4',
     highQuality: false,
     preferredModel: params.preferredModel,
+    falGate: params.falGate,
   });
 }

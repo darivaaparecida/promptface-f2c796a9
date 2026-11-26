@@ -56,7 +56,7 @@ const LOADING_MESSAGES = [
 ];
 
 export function CreatePage() {
-  const { user, config, apiFetch, updateCredits, getMediaUrl } = useAuth();
+  const { user, config, apiFetch, updateCredits, refreshConfig, getMediaUrl } = useAuth();
   const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -253,6 +253,7 @@ export function CreatePage() {
       }
 
       if (!res.ok) {
+        void refreshConfig();
         if (data.notConfigured) {
           setBetaWaitlistMode(true);
         } else {
@@ -269,6 +270,7 @@ export function CreatePage() {
 
       if (data.generation) {
         setResult(data.generation);
+        void refreshConfig();
         addToast({
           variant: 'success',
           title: isVariation ? 'Variação gerada com sucesso!' : 'Fotografia gerada com sucesso!',
@@ -334,6 +336,8 @@ export function CreatePage() {
 
   const hasFaces = faces.length > 0;
   const hasEnoughCredits = (user?.credits ?? 0) >= CREDIT_COSTS.generate;
+  const falQuota = config.falQuota;
+  const falBlocked = Boolean(falQuota?.active && falQuota.exhausted);
   const avatarDisplay = resolveProfileAvatarDisplay({
     faces,
     seed: user?.id || user?.email,
@@ -923,7 +927,31 @@ export function CreatePage() {
                   {user?.credits ?? 0} créditos
                 </dd>
               </div>
+              {falQuota?.active && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-700 dark:text-[#A1A1AA]">Proteção gratuita fal.ai</dt>
+                  <dd
+                    data-testid="create-fal-quota"
+                    className={`font-semibold font-mono-num ${
+                      falQuota.exhausted
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-emerald-700 dark:text-emerald-300'
+                    }`}
+                  >
+                    {falQuota.remaining} de {falQuota.limit} restantes
+                  </dd>
+                </div>
+              )}
             </dl>
+
+            {falBlocked && (
+              <div
+                role="alert"
+                className="rounded-xl bg-amber-50 border border-amber-600/45 text-amber-950 dark:bg-amber-950/35 dark:border-amber-500/40 px-4 py-3 text-xs dark:text-amber-200"
+              >
+                Limite de proteção atingido: as {falQuota?.limit ?? 12} imagens gratuitas da fal.ai já foram usadas para evitar qualquer cobrança.
+              </div>
+            )}
 
             {errorMsg && (
               <div
@@ -936,7 +964,7 @@ export function CreatePage() {
 
             <button
               type="button"
-              disabled={!hasFaces || !hasEnoughCredits || generating}
+              disabled={!hasFaces || !hasEnoughCredits || falBlocked || generating}
               onClick={() => runGeneration(false)}
               className="w-full inline-flex items-center justify-center gap-2 py-4 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
             >
@@ -944,6 +972,8 @@ export function CreatePage() {
               <span>
                 {generating
                   ? 'Gerando fotografia...'
+                  : falBlocked
+                  ? `Limite gratuito (${falQuota?.limit ?? 12}) atingido`
                   : `Confirmar e gerar foto (${CREDIT_COSTS.generate} créditos)`}
               </span>
             </button>

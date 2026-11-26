@@ -40,7 +40,7 @@ const STUDIO_LOADING_MESSAGES = [
 ];
 
 export function StudioPage() {
-  const { user, apiFetch, updateCredits, getMediaUrl } = useAuth();
+  const { user, config, apiFetch, updateCredits, refreshConfig, getMediaUrl } = useAuth();
   const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const requestedId = searchParams.get('foto');
@@ -127,6 +127,7 @@ export function StudioPage() {
       if (typeof data.credits === 'number') updateCredits(data.credits);
 
       if (!res.ok) {
+        void refreshConfig();
         if (data.notConfigured) {
           setBetaNotice(true);
         } else {
@@ -147,6 +148,7 @@ export function StudioPage() {
         );
         setActiveVersionUrl(data.version.url);
         setInstruction('');
+        void refreshConfig();
         addToast({
           variant: 'success',
           title: 'Edição no Studio concluída!',
@@ -197,6 +199,8 @@ export function StudioPage() {
   }
 
   const displayUrl = currentDisplayUrl;
+  const falQuota = config.falQuota;
+  const falBlocked = Boolean(falQuota?.active && falQuota.exhausted);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
@@ -209,10 +213,26 @@ export function StudioPage() {
             PromptFace Studio
           </h1>
         </div>
-        <p className="text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num">
-          Saldo: <strong className="text-slate-950 dark:text-white">{user?.credits ?? 0} créditos</strong> · Edição:{' '}
-          <strong className="text-slate-950 dark:text-white">{CREDIT_COSTS.studio_edit} créditos</strong>
-        </p>
+        <div className="text-sm text-slate-700 dark:text-[#A1A1AA] font-mono-num text-left sm:text-right">
+          <p>
+            Saldo: <strong className="text-slate-950 dark:text-white">{user?.credits ?? 0} créditos</strong> · Edição:{' '}
+            <strong className="text-slate-950 dark:text-white">{CREDIT_COSTS.studio_edit} créditos</strong>
+          </p>
+          {falQuota?.active && (
+            <p className="mt-1 text-xs" data-testid="studio-fal-quota">
+              Proteção gratuita fal.ai:{' '}
+              <strong
+                className={
+                  falQuota.exhausted
+                    ? 'text-amber-700 dark:text-amber-300'
+                    : 'text-emerald-700 dark:text-emerald-300'
+                }
+              >
+                {falQuota.remaining} de {falQuota.limit} restantes
+              </strong>
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -376,6 +396,15 @@ export function StudioPage() {
                 </div>
               </div>
 
+              {falBlocked && (
+                <div
+                  role="alert"
+                  className="rounded-xl bg-amber-50 border border-amber-600/45 text-amber-950 dark:bg-amber-950/35 dark:border-amber-500/40 px-4 py-3 text-xs dark:text-amber-200"
+                >
+                  Limite de proteção atingido: as {falQuota?.limit ?? 12} imagens gratuitas da fal.ai já foram usadas para evitar qualquer cobrança.
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="rounded-xl bg-red-50 border border-red-600/45 text-red-950 dark:bg-red-950/40 dark:border-red-500/40 px-4 py-3 text-xs dark:text-red-200">
                   {errorMsg}
@@ -390,13 +419,20 @@ export function StudioPage() {
 
               <button
                 type="submit"
-                disabled={editing || !instruction.trim() || (user?.credits ?? 0) < CREDIT_COSTS.studio_edit}
+                disabled={
+                  editing ||
+                  falBlocked ||
+                  !instruction.trim() ||
+                  (user?.credits ?? 0) < CREDIT_COSTS.studio_edit
+                }
                 className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110 disabled:opacity-45"
               >
                 {editing && <ButtonSpinner size="sm" />}
                 <span>
                   {editing
                     ? 'Editando...'
+                    : falBlocked
+                    ? `Limite gratuito (${falQuota?.limit ?? 12}) atingido`
                     : `Aplicar edição (${CREDIT_COSTS.studio_edit} créditos)`}
                 </span>
               </button>

@@ -1,9 +1,30 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Wrench, Power } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import type { CategoryItem, PlanDefinition, ScenarioItem } from '../shared/catalog';
+import {
+  DEFAULT_MAINTENANCE_CONFIG,
+  type AdminStatsSummary,
+  type MaintenanceConfig,
+} from '../shared/adminStats';
+import {
+  DEFAULT_FAL_FREE_LIMIT,
+  type FalQuotaSummary,
+} from '../shared/providerQuota';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { AdminStatsSection } from '../components/AdminStatsSection';
 
-type AdminTab = 'metricas' | 'usuarios' | 'cenarios' | 'planos' | 'geracoes' | 'avisos' | 'moderacao';
+type AdminTab =
+  | 'metricas'
+  | 'usuarios'
+  | 'cenarios'
+  | 'planos'
+  | 'geracoes'
+  | 'avisos'
+  | 'moderacao'
+  | 'manutencao';
 
 interface AdminOverview {
   metrics: {
@@ -25,6 +46,7 @@ interface AdminOverview {
     credits: number;
     planId: string;
     subscriptionStatus: string;
+    createdAt?: string;
   }>;
   generations: Array<{
     id: string;
@@ -48,11 +70,19 @@ interface AdminOverview {
     createdAt: string;
   }>;
   waitlistCount: number;
+  maintenance?: MaintenanceConfig;
+  falQuota?: FalQuotaSummary;
+  dailyStats30d?: AdminStatsSummary;
 }
 
 export function AdminPage() {
-  const { apiFetch } = useAuth();
-  const [tab, setTab] = useState<AdminTab>('metricas');
+  const { apiFetch, refreshConfig } = useAuth();
+  const { addToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTabParam = searchParams.get('tab');
+  const [tab, setTab] = useState<AdminTab>(
+    initialTabParam === 'manutencao' ? 'manutencao' : 'metricas'
+  );
   const [data, setData] = useState<AdminOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -70,12 +100,35 @@ export function AdminPage() {
   const [creatingNotice, setCreatingNotice] = useState(false);
   const [deletingNoticeId, setDeletingNoticeId] = useState<string | null>(null);
 
+  // Maintenance mode form states
+  const [maintEnabled, setMaintEnabled] = useState(false);
+  const [maintTitle, setMaintTitle] = useState(DEFAULT_MAINTENANCE_CONFIG.title);
+  const [maintMessage, setMaintMessage] = useState(DEFAULT_MAINTENANCE_CONFIG.message);
+  const [maintEstimatedReturn, setMaintEstimatedReturn] = useState(
+    DEFAULT_MAINTENANCE_CONFIG.estimatedReturn
+  );
+  const [savingMaintenance, setSavingMaintenance] = useState(false);
+
+  // fal.ai quota guard state
+  const [falLimitInput, setFalLimitInput] = useState(String(DEFAULT_FAL_FREE_LIMIT));
+  const [savingFalQuota, setSavingFalQuota] = useState(false);
+
   const loadAdmin = async () => {
     setLoading(true);
     try {
       const res = await apiFetch('/api/admin/overview');
       if (res.ok) {
-        setData((await res.json()) as AdminOverview);
+        const overview = (await res.json()) as AdminOverview;
+        setData(overview);
+        if (overview.maintenance) {
+          setMaintEnabled(overview.maintenance.enabled);
+          setMaintTitle(overview.maintenance.title);
+          setMaintMessage(overview.maintenance.message);
+          setMaintEstimatedReturn(overview.maintenance.estimatedReturn);
+        }
+        if (overview.falQuota) {
+          setFalLimitInput(String(overview.falQuota.limit));
+        }
       }
     } finally {
       setLoading(false);
@@ -86,6 +139,13 @@ export function AdminPage() {
     void loadAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const param = searchParams.get('tab');
+    if (param === 'manutencao') {
+      setTab('manutencao');
+    }
+  }, [searchParams]);
 
   const adjustCredits = async (userId: string, delta: number) => {
     const key = `${userId}:${delta}`;
@@ -187,6 +247,78 @@ export function AdminPage() {
     }
   };
 
+  const saveMaintenanceSettings = async (nextEnabled: boolean) => {
+    setSavingMaintenance(true);
+    setFeedback(null);
+    try {
+      const res = await apiFetch('/api/admin/maintenance', {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled: nextEnabled,
+          title: maintTitle,
+          message: maintMessage,
+          estimatedReturn: maintEstimatedReturn,
+        }),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as { maintenance: MaintenanceConfig };
+        setMaintEnabled(payload.maintenance.enabled);
+        setMaintTitle(payload.maintenance.title);
+        setMaintMessage(payload.maintenance.message);
+        setMaintEstimatedReturn(payload.maintenance.estimatedReturn);
+        setData((prev) => (prev ? { ...prev, maintenance: payload.maintenance } : prev));
+        await refreshConfig();
+        const statusMsg = payload.maintenance.enabled
+          ? 'Modo de manutenção ativado para os usuários.'
+          : 'Modo de manutenção desativado. Plataforma online para todos.';
+        setFeedback(statusMsg);
+        addToast({
+          title: payload.maintenance.enabled ? 'Manutenção ativada' : 'Manutenção desativada',
+          description: statusMsg,
+          variant: 'success',
+        });
+      } else {
+        addToast({
+          title: 'Erro ao atualizar manutenção',
+          description: 'Tente novamente em alguns segundos.',
+          variant: 'error',
+        });
+      }
+    } finally {
+      setSavingMaintenance(false);
+    }
+  };
+
+  const handleMaintenanceFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveMaintenanceSettings(maintEnabled);
+  };
+
+  const handleSaveFalQuota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedLimit = Math.max(0, Math.floor(Number(falLimitInput) || 0));
+    setSavingFalQuota(true);
+    try {
+      const res = await apiFetch('/api/admin/fal-quota', {
+        method: 'PUT',
+        body: JSON.stringify({ falFreeLimit: parsedLimit }),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as { falQuota: FalQuotaSummary };
+        setData((prev) => (prev ? { ...prev, falQuota: payload.falQuota } : prev));
+        setFalLimitInput(String(payload.falQuota.limit));
+        await refreshConfig();
+        addToast({
+          title: 'Limite atualizado',
+          description: `Limite de proteção da fal.ai definido para ${payload.falQuota.limit} imagens.`,
+          variant: 'success',
+        });
+      }
+    } finally {
+      setSavingFalQuota(false);
+    }
+  };
+
   if (loading || !data) {
     return (
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12">
@@ -215,22 +347,35 @@ export function AdminPage() {
       <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-white/10 pb-4">
         {(
           [
-            ['metricas', 'Indicadores e Receita'],
+            ['metricas', 'Estatísticas e Receita'],
             ['usuarios', `Usuários (${data.users.length})`],
             ['cenarios', `Cenários (${data.scenarios.length})`],
             ['planos', 'Planos e Preços'],
             ['geracoes', 'Consumo de API'],
             ['avisos', 'Novidades e Avisos'],
             ['moderacao', `Moderação (${data.moderationLogs.length})`],
+            [
+              'manutencao',
+              data.maintenance?.enabled ? 'Modo de Manutenção (Ativo)' : 'Modo de Manutenção',
+            ],
           ] as [AdminTab, string][]
         ).map(([id, label]) => (
           <button
             key={id}
             type="button"
-            onClick={() => setTab(id)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap shrink-0 ${
+            onClick={() => {
+              setTab(id);
+              if (id === 'manutencao') {
+                setSearchParams({ tab: 'manutencao' }, { replace: true });
+              } else if (searchParams.has('tab')) {
+                setSearchParams({}, { replace: true });
+              }
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
               tab === id
                 ? 'bg-[#7C3AED] text-white'
+                : id === 'manutencao' && data.maintenance?.enabled
+                ? 'bg-amber-100 text-amber-950 border border-amber-400 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-500/40'
                 : 'bg-white text-slate-700 border border-slate-300 hover:text-slate-950 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:border-white/10 dark:hover:text-white'
             }`}
           >
@@ -240,27 +385,38 @@ export function AdminPage() {
       </div>
 
       {tab === 'metricas' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              label: 'MRR (Receita mensal)',
-              val: `R$ ${data.metrics.mrrBrl.toFixed(2).replace('.', ',')}`,
-            },
-            { label: 'Assinaturas ativas', val: String(data.metrics.activeSubscriptions) },
-            { label: 'Cancelamentos', val: String(data.metrics.canceledSubscriptions) },
-            { label: 'Usuários cadastrados', val: String(data.metrics.totalUsers) },
-            { label: 'Gerações hoje', val: String(data.metrics.generationsToday) },
-            { label: 'Total de gerações', val: String(data.metrics.totalGenerations) },
-            { label: 'Custo médio / imagem', val: `US$ ${data.metrics.avgCostUsd.toFixed(3)}` },
-            { label: 'Lista de espera', val: String(data.waitlistCount) },
-          ].map((kpi) => (
-            <div key={kpi.label} className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 shadow-sm dark:shadow-none">
-              <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">{kpi.label}</p>
-              <p className="mt-2 font-display text-2xl font-bold text-slate-950 dark:text-white font-mono-num">
-                {kpi.val}
-              </p>
-            </div>
-          ))}
+        <div className="space-y-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                label: 'MRR (Receita mensal)',
+                val: `R$ ${data.metrics.mrrBrl.toFixed(2).replace('.', ',')}`,
+              },
+              { label: 'Assinaturas ativas', val: String(data.metrics.activeSubscriptions) },
+              { label: 'Cancelamentos', val: String(data.metrics.canceledSubscriptions) },
+              { label: 'Usuários cadastrados', val: String(data.metrics.totalUsers) },
+              { label: 'Gerações hoje', val: String(data.metrics.generationsToday) },
+              { label: 'Total de gerações', val: String(data.metrics.totalGenerations) },
+              { label: 'Custo médio / imagem', val: `US$ ${data.metrics.avgCostUsd.toFixed(3)}` },
+              { label: 'Lista de espera', val: String(data.waitlistCount) },
+            ].map((kpi) => (
+              <div
+                key={kpi.label}
+                className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 shadow-sm dark:shadow-none"
+              >
+                <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">{kpi.label}</p>
+                <p className="mt-2 font-display text-2xl font-bold text-slate-950 dark:text-white font-mono-num">
+                  {kpi.val}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <AdminStatsSection
+            dailyStats30d={data.dailyStats30d}
+            users={data.users}
+            generations={data.generations}
+          />
         </div>
       )}
 
@@ -433,33 +589,84 @@ export function AdminPage() {
       )}
 
       {tab === 'geracoes' && (
-        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-x-auto shadow-sm dark:shadow-none">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-[#A1A1AA]">
-              <tr>
-                <th className="py-3 px-4">Data</th>
-                <th className="py-3 px-4">Cenário</th>
-                <th className="py-3 px-4">Provedor / Modelo</th>
-                <th className="py-3 px-4 text-right">Custo API</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-white/5">
-              {data.generations.map((g) => (
-                <tr key={g.id}>
-                  <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
-                    {new Date(g.createdAt).toLocaleString('pt-BR')}
-                  </td>
-                  <td className="py-3 px-4 text-slate-950 dark:text-white">{g.scenarioTitle}</td>
-                  <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA]">
-                    {g.provider} · {g.model}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono-num text-slate-950 dark:text-white">
-                    US$ {(g.estimatedCostUsd || 0).toFixed(3)}
-                  </td>
+        <div className="space-y-6">
+          <form
+            onSubmit={handleSaveFalQuota}
+            data-testid="admin-fal-quota-card"
+            className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 flex flex-col md:flex-row md:items-end justify-between gap-4 shadow-sm dark:shadow-none"
+          >
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
+                Proteção contra cobrança · fal.ai
+              </p>
+              <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
+                Cota gratuita controlada: {data.falQuota?.used ?? 0} / {data.falQuota?.limit ?? DEFAULT_FAL_FREE_LIMIT} imagens usadas
+              </h2>
+              <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
+                {data.falQuota?.active
+                  ? `Chave FAL_API_KEY conectada. Restam ${data.falQuota.remaining} imagens antes do bloqueio automático.`
+                  : `Chave FAL_API_KEY ainda não detectada no servidor. Quando ativada, o sistema bloqueia automaticamente ao atingir ${data.falQuota?.limit ?? DEFAULT_FAL_FREE_LIMIT} imagens.`}
+              </p>
+            </div>
+
+            <div className="flex items-end gap-3 shrink-0">
+              <div>
+                <label
+                  htmlFor="fal-limit-input"
+                  className="block text-xs text-slate-700 dark:text-[#A1A1AA] mb-1"
+                >
+                  Limite máximo
+                </label>
+                <input
+                  id="fal-limit-input"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={falLimitInput}
+                  onChange={(e) => setFalLimitInput(e.target.value)}
+                  className="w-28 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm font-mono-num text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={savingFalQuota}
+                data-testid="save-fal-quota-button"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#6D28D9] disabled:opacity-60"
+              >
+                {savingFalQuota && <ButtonSpinner size="xs" />}
+                <span>{savingFalQuota ? 'Salvando...' : 'Salvar limite'}</span>
+              </button>
+            </div>
+          </form>
+
+          <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] overflow-x-auto shadow-sm dark:shadow-none">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-[#A1A1AA]">
+                <tr>
+                  <th className="py-3 px-4">Data</th>
+                  <th className="py-3 px-4">Cenário</th>
+                  <th className="py-3 px-4">Provedor / Modelo</th>
+                  <th className="py-3 px-4 text-right">Custo API</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-white/5">
+                {data.generations.map((g) => (
+                  <tr key={g.id}>
+                    <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+                      {new Date(g.createdAt).toLocaleString('pt-BR')}
+                    </td>
+                    <td className="py-3 px-4 text-slate-950 dark:text-white">{g.scenarioTitle}</td>
+                    <td className="py-3 px-4 text-xs text-slate-700 dark:text-[#A1A1AA]">
+                      {g.provider} · {g.model}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono-num text-slate-950 dark:text-white">
+                      US$ {(g.estimatedCostUsd || 0).toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -551,6 +758,146 @@ export function AdminPage() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {tab === 'manutencao' && (
+        <div className="space-y-6" data-testid="admin-maintenance-panel">
+          <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm dark:shadow-none">
+            <div className="flex items-start gap-3.5">
+              <div
+                className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 ${
+                  maintEnabled
+                    ? 'border-amber-500/40 bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
+                    : 'border-emerald-500/40 bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
+                }`}
+              >
+                <Wrench className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
+                  {maintEnabled
+                    ? 'Modo de Manutenção Ativo'
+                    : 'Plataforma Online (Manutenção Desativada)'}
+                </h2>
+                <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA] max-w-xl">
+                  {maintEnabled
+                    ? 'Visitantes e usuários comuns visualizam a tela amigável de manutenção. Administradores permanecem com acesso livre para validar atualizações.'
+                    : 'Todos os usuários acessam normalmente o catálogo, estúdio e gerações. Ative o modo de manutenção durante atualizações do sistema.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={savingMaintenance}
+              data-testid="toggle-maintenance-button"
+              onClick={() => saveMaintenanceSettings(!maintEnabled)}
+              className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap shrink-0 transition-all disabled:opacity-60 ${
+                maintEnabled
+                  ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-white shadow-lg shadow-[#7C3AED]/20 hover:brightness-110'
+              }`}
+            >
+              {savingMaintenance ? (
+                <ButtonSpinner size="sm" />
+              ) : (
+                <Power className="w-3.5 h-3.5" aria-hidden="true" />
+              )}
+              <span>
+                {savingMaintenance
+                  ? 'Atualizando...'
+                  : maintEnabled
+                  ? 'Desativar modo de manutenção'
+                  : 'Ativar modo de manutenção'}
+              </span>
+            </button>
+          </div>
+
+          <form
+            onSubmit={handleMaintenanceFormSubmit}
+            className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 space-y-4 shadow-sm dark:shadow-none"
+          >
+            <div>
+              <h3 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+                Mensagem exibida aos usuários
+              </h3>
+              <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
+                Personalize o comunicado exibido enquanto o modo de manutenção estiver ligado.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="maintenance-title-input"
+                  className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA] mb-1.5"
+                >
+                  Título do aviso
+                </label>
+                <input
+                  id="maintenance-title-input"
+                  type="text"
+                  required
+                  maxLength={120}
+                  value={maintTitle}
+                  onChange={(e) => setMaintTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="maintenance-return-input"
+                  className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA] mb-1.5"
+                >
+                  Previsão de retorno (opcional)
+                </label>
+                <input
+                  id="maintenance-return-input"
+                  type="text"
+                  maxLength={100}
+                  value={maintEstimatedReturn}
+                  onChange={(e) => setMaintEstimatedReturn(e.target.value)}
+                  placeholder="Ex.: Retorno previsto às 15h30"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="maintenance-message-input"
+                className="block text-xs font-medium text-slate-700 dark:text-[#A1A1AA] mb-1.5"
+              >
+                Mensagem amigável
+              </label>
+              <textarea
+                id="maintenance-message-input"
+                rows={3}
+                required
+                maxLength={500}
+                value={maintMessage}
+                onChange={(e) => setMaintMessage(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white"
+              />
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-600 dark:text-[#71717A]">
+                Ao salvar, a mensagem é atualizada imediatamente no servidor.
+              </p>
+              <button
+                type="submit"
+                disabled={savingMaintenance}
+                data-testid="save-maintenance-button"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-violet-700 bg-violet-700 text-xs font-semibold uppercase tracking-wider text-white hover:bg-violet-800 dark:border-[#7C3AED] dark:bg-[#7C3AED] dark:hover:bg-[#6D28D9] whitespace-nowrap shrink-0 disabled:opacity-60"
+              >
+                {savingMaintenance && <ButtonSpinner size="sm" />}
+                <span>{savingMaintenance ? 'Salvando...' : 'Salvar configurações'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

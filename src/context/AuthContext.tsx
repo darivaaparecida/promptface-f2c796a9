@@ -1,5 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { PreferredAiModelId } from '../shared/aiModels';
+import {
+  DEFAULT_MAINTENANCE_CONFIG,
+  type MaintenanceConfig,
+} from '../shared/adminStats';
+import {
+  DEFAULT_FAL_FREE_LIMIT,
+  type FalQuotaSummary,
+} from '../shared/providerQuota';
 
 export interface AuthUser {
   id: string;
@@ -21,6 +29,8 @@ export interface PublicConfig {
   googleSignInConfigured: boolean;
   needsAdminClaim: boolean;
   resendConfigured: boolean;
+  maintenance: MaintenanceConfig;
+  falQuota?: FalQuotaSummary;
 }
 
 interface AuthContextValue {
@@ -45,6 +55,15 @@ const DEFAULT_CONFIG: PublicConfig = {
   googleSignInConfigured: false,
   needsAdminClaim: false,
   resendConfigured: false,
+  maintenance: DEFAULT_MAINTENANCE_CONFIG,
+  falQuota: {
+    active: false,
+    used: 0,
+    limit: DEFAULT_FAL_FREE_LIMIT,
+    inFlight: 0,
+    remaining: DEFAULT_FAL_FREE_LIMIT,
+    exhausted: false,
+  },
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

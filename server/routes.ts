@@ -22,6 +22,16 @@ import {
 } from '../src/shared/photoTags.ts';
 import { normalizePreferredAiModel } from '../src/shared/aiModels.ts';
 import {
+  buildAdminDailyStats,
+  normalizeMaintenanceConfig,
+} from '../src/shared/adminStats.ts';
+import {
+  canConsumeFalImage,
+  getFalQuotaSummary,
+  normalizeFalQuotaState,
+  recordFalImageSuccess,
+} from '../src/shared/providerQuota.ts';
+import {
   clearSessionCookie,
   hashPassword,
   requireAdmin,
@@ -48,9 +58,50 @@ import {
   editStudioImageWithProvider,
   enhancePromptWithAi,
   generatePortraitWithProvider,
+  isFalConfigured,
   isImageProviderConfigured,
   verifyUploadedFace,
+  type FalRequestGate,
 } from './providers/imageProvider.ts';
+
+let falInFlightCount = 0;
+
+function createFalRequestGate(): FalRequestGate {
+  let acquired = false;
+  let committed = false;
+  return {
+    tryAcquire: () => {
+      const db = loadDb();
+      const quota = normalizeFalQuotaState(db.falQuota);
+      if (!canConsumeFalImage(quota, falInFlightCount)) {
+        return false;
+      }
+      falInFlightCount += 1;
+      acquired = true;
+      return true;
+    },
+    commit: async () => {
+      if (committed) return;
+      committed = true;
+      const db = loadDb();
+      db.falQuota = recordFalImageSuccess(normalizeFalQuotaState(db.falQuota));
+      await saveDb(db);
+    },
+    release: () => {
+      if (acquired) {
+        acquired = false;
+        falInFlightCount = Math.max(0, falInFlightCount - 1);
+      }
+    },
+  };
+}
+
+function currentFalQuotaSummary(db: ReturnType<typeof loadDb>) {
+  return getFalQuotaSummary(normalizeFalQuotaState(db.falQuota), {
+    active: isFalConfigured(),
+    inFlight: falInFlightCount,
+  });
+}
 
 function getStripeClient(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
@@ -87,6 +138,23 @@ async function sendTransactionalEmail(to: string, subject: string, html: string)
   } catch {
     return false;
   }
+}
+
+function rejectIfMaintenance(
+  db: ReturnType<typeof loadDb>,
+  userRole: string | undefined,
+  res: Response
+): boolean {
+  const maintenance = normalizeMaintenanceConfig(db.maintenance);
+  if (maintenance.enabled && userRole !== 'admin') {
+    res.status(503).json({
+      maintenance: true,
+      error: maintenance.message,
+      title: maintenance.title,
+    });
+    return true;
+  }
+  return false;
 }
 
 export function registerApiRoutes(app: Express): void {
@@ -209,6 +277,8 @@ export function registerApiRoutes(app: Express): void {
       googleSignInConfigured: false,
       needsAdminClaim: !hasAdmin && !process.env.ADMIN_PASSWORD?.trim(),
       resendConfigured: Boolean(process.env.RESEND_API_KEY?.trim()),
+      maintenance: normalizeMaintenanceConfig(db.maintenance),
+      falQuota: currentFalQuotaSummary(db),
     });
   });
 
@@ -634,6 +704,7 @@ export function registerApiRoutes(app: Express): void {
     }
 
     const db = loadDb();
+    if (rejectIfMaintenance(db, user.role, res)) return;
     const check = await verifyUploadedFace(cleanB64, mimeType);
     if (!check.valid) {
       db.moderationLogs.unshift({
@@ -687,6 +758,7 @@ export function registerApiRoutes(app: Express): void {
   app.post('/api/enhance-prompt', requireAuth, async (req: AuthenticatedRequest, res) => {
     const db = loadDb();
     const user = db.users.find((u) => u.id === req.authUser!.id)!;
+    if (rejectIfMaintenance(db, user.role, res)) return;
     const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
 
     const mod = moderatePrompt(description);
@@ -761,6 +833,7 @@ export function registerApiRoutes(app: Express): void {
   app.post('/api/generate', requireAuth, async (req: AuthenticatedRequest, res) => {
     const db = loadDb();
     const user = db.users.find((u) => u.id === req.authUser!.id)!;
+    if (rejectIfMaintenance(db, user.role, res)) return;
 
     const userFaces = db.faceReferences.filter((f) => f.userId === user.id);
     if (userFaces.length === 0) {
@@ -859,6 +932,7 @@ export function registerApiRoutes(app: Express): void {
       aspectRatio,
       highQuality: Boolean(req.body?.highQuality),
       preferredModel,
+      falGate: createFalRequestGate(),
     });
 
     if (!result.ok || !result.base64) {
@@ -874,6 +948,18 @@ export function registerApiRoutes(app: Express): void {
         createdAt: new Date().toISOString(),
       });
       await saveDb(db);
+
+      if (result.quotaExhausted) {
+        res.status(429).json({
+          quotaExhausted: true,
+          error:
+            result.error ||
+            'Limite gratuito de 12 imagens na fal.ai atingido para evitar qualquer cobrança.',
+          credits: user.credits,
+          falQuota: currentFalQuotaSummary(db),
+        });
+        return;
+      }
 
       if (result.notConfigured) {
         res.status(503).json({
@@ -936,6 +1022,7 @@ export function registerApiRoutes(app: Express): void {
         url: `/media/generated/${generation.filename}`,
       },
       credits: user.credits,
+      falQuota: currentFalQuotaSummary(db),
     });
   });
 
@@ -943,6 +1030,7 @@ export function registerApiRoutes(app: Express): void {
   app.post('/api/studio/edit', requireAuth, async (req: AuthenticatedRequest, res) => {
     const db = loadDb();
     const user = db.users.find((u) => u.id === req.authUser!.id)!;
+    if (rejectIfMaintenance(db, user.role, res)) return;
     const generationId = typeof req.body?.generationId === 'string' ? req.body.generationId : '';
     const instruction = typeof req.body?.instruction === 'string' ? req.body.instruction.trim() : '';
 
@@ -1022,6 +1110,7 @@ export function registerApiRoutes(app: Express): void {
       faceReferences: faceRefs,
       instruction,
       preferredModel,
+      falGate: createFalRequestGate(),
     });
 
     if (!result.ok || !result.base64) {
@@ -1037,6 +1126,18 @@ export function registerApiRoutes(app: Express): void {
         createdAt: new Date().toISOString(),
       });
       await saveDb(db);
+
+      if (result.quotaExhausted) {
+        res.status(429).json({
+          quotaExhausted: true,
+          error:
+            result.error ||
+            'Limite gratuito de 12 imagens na fal.ai atingido para evitar qualquer cobrança.',
+          credits: user.credits,
+          falQuota: currentFalQuotaSummary(db),
+        });
+        return;
+      }
 
       if (result.notConfigured) {
         res.status(503).json({
@@ -1083,6 +1184,7 @@ export function registerApiRoutes(app: Express): void {
         })),
       },
       credits: user.credits,
+      falQuota: currentFalQuotaSummary(db),
     });
   });
 
@@ -1418,6 +1520,8 @@ export function registerApiRoutes(app: Express): void {
   });
 
   app.post('/api/checkout', requireAuth, async (req: AuthenticatedRequest, res) => {
+    const db = loadDb();
+    if (rejectIfMaintenance(db, req.authUser?.role, res)) return;
     const stripe = getStripeClient();
     const planId = req.body?.planId === 'premium' ? 'premium' : 'pro';
     const priceId =
@@ -1521,7 +1625,61 @@ export function registerApiRoutes(app: Express): void {
       notices: db.notices,
       moderationLogs: db.moderationLogs.slice(0, 50),
       waitlistCount: db.waitlist.length,
+      maintenance: normalizeMaintenanceConfig(db.maintenance),
+      falQuota: currentFalQuotaSummary(db),
+      dailyStats30d: buildAdminDailyStats({
+        users: db.users,
+        generations: db.generations,
+        days: 30,
+      }),
     });
+  });
+
+  app.put('/api/admin/fal-quota', requireAdmin, async (req, res) => {
+    const db = loadDb();
+    const current = normalizeFalQuotaState(db.falQuota);
+    const rawLimit = req.body?.falFreeLimit;
+    const rawUsed = req.body?.falImagesUsed;
+
+    const nextLimit =
+      typeof rawLimit === 'number' && Number.isFinite(rawLimit)
+        ? Math.max(0, Math.floor(rawLimit))
+        : current.falFreeLimit;
+    const nextUsed =
+      typeof rawUsed === 'number' && Number.isFinite(rawUsed)
+        ? Math.max(0, Math.floor(rawUsed))
+        : current.falImagesUsed;
+
+    db.falQuota = normalizeFalQuotaState({
+      falFreeLimit: nextLimit,
+      falImagesUsed: nextUsed,
+      updatedAt: new Date().toISOString(),
+    });
+    await saveDb(db);
+    res.json({ falQuota: currentFalQuotaSummary(db) });
+  });
+
+  app.put('/api/admin/maintenance', requireAdmin, async (req, res) => {
+    const db = loadDb();
+    const body = (req.body ?? {}) as {
+      enabled?: unknown;
+      title?: unknown;
+      message?: unknown;
+      estimatedReturn?: unknown;
+    };
+    const nextConfig = normalizeMaintenanceConfig({
+      enabled: typeof body.enabled === 'boolean' ? body.enabled : db.maintenance?.enabled,
+      title: typeof body.title === 'string' ? body.title : db.maintenance?.title,
+      message: typeof body.message === 'string' ? body.message : db.maintenance?.message,
+      estimatedReturn:
+        typeof body.estimatedReturn === 'string'
+          ? body.estimatedReturn
+          : db.maintenance?.estimatedReturn,
+      updatedAt: new Date().toISOString(),
+    });
+    db.maintenance = nextConfig;
+    await saveDb(db);
+    res.json({ maintenance: nextConfig });
   });
 
   app.post('/api/admin/users/:id/credits', requireAdmin, async (req, res) => {

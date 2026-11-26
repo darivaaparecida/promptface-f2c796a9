@@ -2,6 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { CATEGORIES, INITIAL_PLANS, INITIAL_SCENARIOS } from '../src/shared/catalog.ts';
+import {
+  DEFAULT_MAINTENANCE_CONFIG,
+  normalizeMaintenanceConfig,
+} from '../src/shared/adminStats.ts';
+import {
+  DEFAULT_FAL_FREE_LIMIT,
+  normalizeFalQuotaState,
+} from '../src/shared/providerQuota.ts';
 import type { DatabaseSchema } from './types.ts';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -229,6 +237,11 @@ function createInitialDb(): DatabaseSchema {
     categories: [...CATEGORIES],
     scenarios: [...INITIAL_SCENARIOS],
     plans: [...INITIAL_PLANS],
+    maintenance: { ...DEFAULT_MAINTENANCE_CONFIG },
+    falQuota: {
+      falImagesUsed: 0,
+      falFreeLimit: DEFAULT_FAL_FREE_LIMIT,
+    },
   };
 }
 
@@ -263,6 +276,8 @@ export function loadDb(): DatabaseSchema {
       categories: parsed.categories?.length ? parsed.categories : defaults.categories,
       scenarios: parsed.scenarios?.length ? parsed.scenarios : defaults.scenarios,
       plans: parsed.plans?.length ? parsed.plans : defaults.plans,
+      maintenance: normalizeMaintenanceConfig(parsed.maintenance ?? defaults.maintenance),
+      falQuota: normalizeFalQuotaState(parsed.falQuota ?? defaults.falQuota),
     };
     return dbCache;
   } catch {

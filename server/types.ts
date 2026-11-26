@@ -1,6 +1,8 @@
 import type { CategoryItem, PlanDefinition, ScenarioItem } from '../src/shared/catalog.ts';
 import type { VisualProfileData } from '../src/shared/rules.ts';
 import type { PreferredAiModelId } from '../src/shared/aiModels.ts';
+import type { MaintenanceConfig } from '../src/shared/adminStats.ts';
+import type { FalQuotaState } from '../src/shared/providerQuota.ts';
 
 export interface UserRecord {
   id: string;
@@ -134,4 +136,6 @@ export interface DatabaseSchema {
   categories: CategoryItem[];
   scenarios: ScenarioItem[];
   plans: PlanDefinition[];
+  maintenance?: MaintenanceConfig;
+  falQuota?: FalQuotaState;
 }

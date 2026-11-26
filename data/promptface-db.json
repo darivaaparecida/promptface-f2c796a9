@@ -246,7 +246,17 @@
     }
   ],
   "payments": [],
-  "moderationLogs": [],
+  "moderationLogs": [
+    {
+      "id": "2c20fee6-e53f-4821-bc4c-287ab31b9d9d",
+      "userId": "user-teste-admin",
+      "userEmail": "teste@promptface.com.br",
+      "inputSnippet": "",
+      "reason": "Descreva o cenário desejado antes de continuar.",
+      "action": "blocked_prompt",
+      "createdAt": "2026-11-26T13:57:36.596Z"
+    }
+  ],
   "notices": [
     {
       "id": "notice-launch",
@@ -1657,5 +1667,17 @@
       ],
       "highlighted": true
     }
-  ]
+  ],
+  "maintenance": {
+    "enabled": false,
+    "title": "Atualização rápida dos servidores de IA",
+    "message": "Estamos aplicando melhorias de velocidade e qualidade nas gerações. Voltamos em instantes!",
+    "estimatedReturn": "Retorno previsto em 15 minutos",
+    "updatedAt": "2026-11-26T13:11:44.714Z"
+  },
+  "falQuota": {
+    "falImagesUsed": 0,
+    "falFreeLimit": 12,
+    "updatedAt": "2026-11-26T13:57:44.278Z"
+  }
 }
