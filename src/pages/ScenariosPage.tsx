@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Check, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
 import {
   CATEGORIES,
   INITIAL_SCENARIOS,
@@ -18,16 +18,41 @@ export function ScenariosPage() {
   const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
   const [selectedCategory, setSelectedCategory] = useState(initialCat);
   const [query, setQuery] = useState('');
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   useEffect(() => {
     const paramCat = searchParams.get('categoria') || 'all';
     setSelectedCategory(paramCat);
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!mobileFilterOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileFilterOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileFilterOpen]);
+
   const filtered = useMemo(
     () => filterScenarios(scenarios, selectedCategory, query),
     [scenarios, selectedCategory, query]
   );
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of scenarios) {
+      counts[s.categoryId] = (counts[s.categoryId] || 0) + 1;
+    }
+    return counts;
+  }, [scenarios]);
+
+  const activeCategoryName = useMemo(() => {
+    if (selectedCategory === 'all') return `Todas (${scenarios.length})`;
+    return categories.find((c) => c.id === selectedCategory)?.name || 'Todas';
+  }, [categories, scenarios.length, selectedCategory]);
 
   const handleCategorySelect = (catId: string) => {
     setSelectedCategory(catId);
@@ -37,6 +62,7 @@ export function ScenariosPage() {
       searchParams.set('categoria', catId);
     }
     setSearchParams(searchParams, { replace: true });
+    setMobileFilterOpen(false);
   };
 
   const clearFilters = () => {
@@ -45,13 +71,13 @@ export function ScenariosPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-2 max-w-2xl">
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-14 space-y-5 sm:space-y-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
+        <div className="space-y-1.5 sm:space-y-2 max-w-2xl">
           <p className="text-xs font-medium uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
             Biblioteca completa · {scenarios.length} cenários
           </p>
-          <h1 className="font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white text-balance">
+          <h1 className="font-display text-2xl sm:text-4xl font-bold leading-tight text-slate-950 dark:text-white text-balance">
             Escolha um cenário pronto para personalizar
           </h1>
           <p className="text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA]">
@@ -73,14 +99,14 @@ export function ScenariosPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar cenário (ex.: Dubai, CEO, Paris)"
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 dark:bg-[#17171F] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/70 focus:outline-none focus:border-[#8B5CF6]"
+            className="w-full min-h-[44px] pl-10 pr-9 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 dark:bg-[#17171F] dark:border-white/15 dark:text-white dark:placeholder:text-[#A1A1AA]/70 focus:outline-none focus:border-[#8B5CF6]"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
               aria-label="Limpar busca"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-600 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -88,8 +114,54 @@ export function ScenariosPage() {
         </div>
       </div>
 
-      {/* 14 Category tabs cleanly wrapped in rows on desktop (no horizontal scroll) */}
-      <div role="tablist" aria-label="Categorias de cenários" className="flex flex-wrap gap-2">
+      {/* Mobile: compact category selector trigger (replaces 8 rows of wrapped buttons) */}
+      <div className="flex sm:hidden items-center gap-2">
+        <button
+          type="button"
+          data-testid="mobile-category-filter-trigger"
+          aria-expanded={mobileFilterOpen}
+          aria-haspopup="dialog"
+          onClick={() => setMobileFilterOpen(true)}
+          className={`flex-1 min-w-0 min-h-[44px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-2 text-sm transition-colors ${
+            selectedCategory !== 'all'
+              ? 'border-violet-600 bg-violet-50 text-violet-950 dark:border-[#8B5CF6]/60 dark:bg-[#7C3AED]/15 dark:text-white'
+              : 'border-slate-300 bg-white text-slate-900 dark:border-white/15 dark:bg-[#17171F] dark:text-white'
+          }`}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <SlidersHorizontal
+              className="w-4 h-4 shrink-0 text-violet-700 dark:text-[#A855F7]"
+              aria-hidden="true"
+            />
+            <span className="text-slate-600 dark:text-[#A1A1AA] shrink-0">Categoria:</span>
+            <span className="font-semibold truncate">{activeCategoryName}</span>
+          </span>
+          <ChevronDown
+            className={`w-4 h-4 shrink-0 text-slate-600 dark:text-[#A1A1AA] transition-transform ${
+              mobileFilterOpen ? 'rotate-180' : ''
+            }`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {selectedCategory !== 'all' && (
+          <button
+            type="button"
+            onClick={() => handleCategorySelect('all')}
+            aria-label="Limpar categoria selecionada"
+            className="min-h-[44px] min-w-[44px] rounded-xl border border-slate-300 bg-white text-slate-700 hover:text-slate-950 dark:border-white/15 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:text-white flex items-center justify-center shrink-0"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {/* Desktop / Tablet: Category tabs cleanly wrapped in rows */}
+      <div
+        role="tablist"
+        aria-label="Categorias de cenários"
+        className="hidden sm:flex flex-wrap gap-2"
+      >
         <button
           type="button"
           role="tab"
@@ -201,6 +273,98 @@ export function ScenariosPage() {
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {/* Mobile category picker bottom sheet */}
+      {mobileFilterOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filtrar cenários por categoria"
+          className="fixed inset-0 z-50 sm:hidden bg-black/60 backdrop-blur-sm flex items-end"
+          onClick={() => setMobileFilterOpen(false)}
+        >
+          <div
+            className="w-full rounded-t-3xl bg-white dark:bg-[#12121A] border-t border-slate-300 dark:border-white/15 max-h-[80vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              aria-hidden="true"
+              className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 mx-auto mt-3 mb-1 shrink-0"
+            />
+            <div className="px-5 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">
+                  Filtrar por categoria
+                </h2>
+                <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">
+                  {categories.length} categorias disponíveis
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Fechar filtro de categorias"
+                onClick={() => setMobileFilterOpen(false)}
+                className="min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-4 py-3 space-y-1.5 pb-6">
+              <button
+                type="button"
+                onClick={() => handleCategorySelect('all')}
+                className={`w-full min-h-[46px] px-4 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left text-sm font-medium transition-colors ${
+                  selectedCategory === 'all'
+                    ? 'bg-[#7C3AED] text-white'
+                    : 'bg-slate-50 text-slate-900 hover:bg-slate-100 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/10'
+                }`}
+              >
+                <span>Todas as categorias</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-xs font-mono-num ${
+                      selectedCategory === 'all' ? 'text-white/90' : 'text-slate-500 dark:text-[#A1A1AA]'
+                    }`}
+                  >
+                    {scenarios.length}
+                  </span>
+                  {selectedCategory === 'all' && <Check className="w-4 h-4" aria-hidden="true" />}
+                </span>
+              </button>
+
+              {categories.map((cat) => {
+                const active = selectedCategory === cat.id;
+                const count = categoryCounts[cat.id] || 0;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleCategorySelect(cat.id)}
+                    className={`w-full min-h-[46px] px-4 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-[#7C3AED] text-white'
+                        : 'bg-slate-50 text-slate-900 hover:bg-slate-100 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="truncate">{cat.name}</span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`text-xs font-mono-num ${
+                          active ? 'text-white/90' : 'text-slate-500 dark:text-[#A1A1AA]'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                      {active && <Check className="w-4 h-4" aria-hidden="true" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
