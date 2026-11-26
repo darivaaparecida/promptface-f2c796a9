@@ -19,7 +19,11 @@ import {
   type PlanId,
 } from '../shared/catalog';
 import { getPlanCyclePricing } from '../shared/plansCalculator';
-import { normalizePreferredAiModel, type PreferredAiModelId } from '../shared/aiModels';
+import {
+  getAllowedPreferredModels,
+  normalizePreferredAiModel,
+  type PreferredAiModelId,
+} from '../shared/aiModels';
 import {
   DEFAULT_MAINTENANCE_CONFIG,
   buildAdminDailyStats,
@@ -434,9 +438,20 @@ export async function updateMyPreferredModel(
 ): Promise<void> {
   const profileId = await getMyProfileId();
   const supabase = getSupabase();
+  // Trava também na hora de salvar: modelo fora do plano vira 'auto'
+  // (o modelo efetivo do plano). A geração reforça isso no servidor.
+  const { data: me } = await supabase
+    .from('users')
+    .select('plan_id')
+    .eq('id', profileId)
+    .maybeSingle();
+  const planId = (me?.plan_id as PlanId) ?? 'free_trial';
+  const allowed = getAllowedPreferredModels(planId);
+  const normalized = normalizePreferredAiModel(preferredModel);
+  const safe = allowed.includes(normalized) ? normalized : 'auto';
   const { error } = await supabase
     .from('users')
-    .update({ preferred_model: normalizePreferredAiModel(preferredModel) })
+    .update({ preferred_model: safe })
     .eq('id', profileId);
   if (error) throw toError(error, 'Não foi possível salvar sua preferência de modelo.');
 }

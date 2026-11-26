@@ -15,6 +15,7 @@ import type { VisualProfileData } from '../shared/rules';
 import {
   DEFAULT_PREFERRED_AI_MODEL,
   PREFERRED_AI_MODELS,
+  getAllowedPreferredModels,
   getPreferredAiModelOption,
   normalizePreferredAiModel,
 } from '../shared/aiModels';
@@ -53,7 +54,13 @@ export function VisualProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  const selectedModelOption = getPreferredAiModelOption(profile.preferredModel);
+  const allowedModelIds = getAllowedPreferredModels(user?.planId ?? 'free_trial');
+  const effectivePreferredModel = allowedModelIds.includes(
+    normalizePreferredAiModel(profile.preferredModel)
+  )
+    ? normalizePreferredAiModel(profile.preferredModel)
+    : 'auto';
+  const selectedModelOption = getPreferredAiModelOption(effectivePreferredModel);
   const avatarDisplay = resolveProfileAvatarDisplay({
     faces,
     seed: user?.id || user?.email,
@@ -433,6 +440,7 @@ export function VisualProfilePage() {
                 </label>
                 <p className="mt-0.5 text-xs text-slate-700 dark:text-[#A1A1AA]">
                   Define qual motor de geração será priorizado nas suas próximas fotografias e edições.
+                  Só aparecem os modelos incluídos no seu plano.
                 </p>
               </div>
               <span className="inline-flex items-center px-2.5 py-1 rounded-lg border border-violet-600/40 bg-violet-50 text-[11px] font-medium text-violet-950 dark:border-[#8B5CF6]/45 dark:bg-[#7C3AED]/15 dark:text-violet-100">
@@ -445,7 +453,7 @@ export function VisualProfilePage() {
                 <select
                   id="vp-preferredModel"
                   aria-label="Modelo de IA preferido para gerações futuras"
-                  value={normalizePreferredAiModel(profile.preferredModel)}
+                  value={effectivePreferredModel}
                   onChange={(e) =>
                     setProfile((prev) => ({
                       ...prev,
@@ -454,7 +462,9 @@ export function VisualProfilePage() {
                   }
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 dark:bg-[#08080C] dark:border-white/15 dark:text-white focus:outline-none focus:border-[#8B5CF6]"
                 >
-                  {PREFERRED_AI_MODELS.map((modelOption) => (
+                  {PREFERRED_AI_MODELS.filter((modelOption) =>
+                    allowedModelIds.includes(modelOption.id)
+                  ).map((modelOption) => (
                     <option key={modelOption.id} value={modelOption.id}>
                       {modelOption.label} — {modelOption.badge}
                     </option>
