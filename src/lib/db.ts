@@ -817,7 +817,6 @@ export async function createFolder(rawName: unknown): Promise<FolderItem> {
   const { data, error } = await supabase
     .from('folders')
     .insert({
-      id: `fld-${crypto.randomUUID()}`,
       user_id: profileId,
       name: validation.name,
       created_at: new Date().toISOString(),
