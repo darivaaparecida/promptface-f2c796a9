@@ -1,4 +1,5 @@
 import type { PlanId } from './catalog';
+import { CREDIT_COSTS } from './rules';
 
 export type PreferredAiModelId =
   | 'auto'
@@ -97,7 +98,18 @@ export function resolveGenerationModelPreference(
 // O "Automático" resolve para o 2.1. A geração (Fase 2) DEVE usar
 // resolveEffectiveModel para decidir o modelo e cobrar o custo certo —
 // nunca confie só no valor salvo no navegador.
+//
+// Regra de saldo (27/11/2026): o Pro custa 20 créditos por foto, então só
+// pode ser usado por quem tem saldo para pelo menos 1 foto Pro. Quem tem
+// menos que isso cai para o 2.1 — nunca fica travado sem conseguir gerar.
+// A UI (Perfil Visual) esconde/desabilita o Pro nesses casos, e o resolver
+// abaixo é a trava final: passe o saldo em `credits` sempre que souber.
 // ---------------------------------------------------------------------------
+
+/** O Pro exige saldo suficiente para pelo menos 1 foto Pro (20 créditos). */
+export function canUseProModel(credits: number | undefined | null): boolean {
+  return (credits ?? 0) >= CREDIT_COSTS.generate_pro;
+}
 
 export type PlanModelResolution = '1K' | '2K';
 
@@ -144,11 +156,14 @@ export function getMaxResolutionForPlanModel(
 /**
  * Modelo efetivo para gerar: resolve 'auto' para o modelo do plano e ignora
  * qualquer preferência fora do plano (ex.: Pro salvo por quem era PREMIUM e
- * hoje é Essencial volta para o modelo do plano atual).
+ * hoje é Essencial volta para o modelo do plano atual). Quando o saldo é
+ * informado (`credits`) e não cobre 1 foto Pro, o Pro também cai para o
+ * modelo do plano — o usuário nunca fica sem conseguir gerar.
  */
 export function resolveEffectiveModel(
   planId: PlanId,
-  preferredModel: unknown
+  preferredModel: unknown,
+  credits?: number
 ): {
   model: PreferredAiModelId;
   maxResolution: PlanModelResolution;
@@ -157,8 +172,12 @@ export function resolveEffectiveModel(
 } {
   const access = PLAN_MODEL_ACCESS[planId] ?? PLAN_MODEL_ACCESS.free_trial;
   const normalized = normalizePreferredAiModel(preferredModel);
+  const affordable =
+    credits === undefined ||
+    normalized !== 'gemini-nano-banana-pro' ||
+    canUseProModel(credits);
   const chosen =
-    normalized === 'auto' || !access.allowed.includes(normalized)
+    normalized === 'auto' || !access.allowed.includes(normalized) || !affordable
       ? access.autoModel
       : normalized;
   const option = getPreferredAiModelOption(chosen);

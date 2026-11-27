@@ -12,9 +12,11 @@ import {
   type FaceItem,
 } from '../lib/db';
 import type { VisualProfileData } from '../shared/rules';
+import { CREDIT_COSTS } from '../shared/rules';
 import {
   DEFAULT_PREFERRED_AI_MODEL,
   PREFERRED_AI_MODELS,
+  canUseProModel,
   getAllowedPreferredModels,
   getPreferredAiModelOption,
   normalizePreferredAiModel,
@@ -67,12 +69,20 @@ export function VisualProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  const allowedModelIds = getAllowedPreferredModels(user?.planId ?? 'free_trial');
-  const effectivePreferredModel = allowedModelIds.includes(
-    normalizePreferredAiModel(profile.preferredModel)
-  )
-    ? normalizePreferredAiModel(profile.preferredModel)
+  // O Pro custa 20 créditos por foto: sem saldo para 1 foto Pro, ele nem
+  // aparece como escolha — e quem já tinha ele salvo volta para 'auto'.
+  const canUsePro = canUseProModel(user?.credits);
+  const planAllowedModelIds = getAllowedPreferredModels(user?.planId ?? 'free_trial');
+  const allowedModelIds = planAllowedModelIds.filter(
+    (id) => id !== 'gemini-nano-banana-pro' || canUsePro
+  );
+  const rawPreferredModel = normalizePreferredAiModel(profile.preferredModel);
+  const effectivePreferredModel = allowedModelIds.includes(rawPreferredModel)
+    ? rawPreferredModel
     : 'auto';
+  const proWasCoerced =
+    rawPreferredModel === 'gemini-nano-banana-pro' &&
+    effectivePreferredModel !== 'gemini-nano-banana-pro';
   const selectedModelOption = getPreferredAiModelOption(effectivePreferredModel);
   const filledTextFields = PROFILE_TEXT_FIELDS.filter(
     (key) => String(profile[key] ?? '').trim() !== ''
@@ -165,16 +175,25 @@ export function VisualProfilePage() {
     setSavingProfile(true);
     setFeedback(null);
     try {
-      await saveVisualProfile(profile);
+      // Salva o modelo efetivo (não o bruto): se o Pro estava salvo mas o
+      // saldo não cobre 1 foto Pro, ele volta para 'auto' em vez de ficar
+      // travado no perfil.
+      const profileToSave = { ...profile, preferredModel: effectivePreferredModel };
+      await saveVisualProfile(profileToSave);
       await refreshUser();
+      setProfile((prev) => ({ ...prev, preferredModel: effectivePreferredModel }));
       setFeedback({
         type: 'ok',
-        text: `Perfil Visual atualizado com sucesso (${selectedModelOption.label}).`,
+        text: proWasCoerced
+          ? `Perfil Visual atualizado com sucesso (${selectedModelOption.label}). O Nano Banana Pro precisa de pelo menos ${CREDIT_COSTS.generate_pro} créditos, então o modelo voltou para Automático até você recarregar.`
+          : `Perfil Visual atualizado com sucesso (${selectedModelOption.label}).`,
       });
       addToast({
         variant: 'success',
         title: 'Preferências salvas',
-        description: `Modelo preferido definido para ${selectedModelOption.label}.`,
+        description: proWasCoerced
+          ? `Modelo preferido definido para ${selectedModelOption.label}. O Pro volta a ficar disponível quando seu saldo chegar a ${CREDIT_COSTS.generate_pro} créditos.`
+          : `Modelo preferido definido para ${selectedModelOption.label}.`,
       });
     } catch (err) {
       setFeedback({
@@ -509,25 +528,33 @@ export function VisualProfilePage() {
               className="grid grid-cols-1 sm:grid-cols-2 gap-3"
             >
               {PREFERRED_AI_MODELS.filter((modelOption) =>
-                allowedModelIds.includes(modelOption.id)
+                planAllowedModelIds.includes(modelOption.id)
               ).map((modelOption) => {
                 const selected = effectivePreferredModel === modelOption.id;
+                // Pro sem saldo para 1 foto: mostra travado, com o motivo e o
+                // caminho para recarregar — o link continua clicável.
+                const isPro = modelOption.id === 'gemini-nano-banana-pro';
+                const disabled = isPro && !canUsePro;
                 return (
                   <button
                     key={modelOption.id}
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    onClick={() =>
+                    aria-disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return;
                       setProfile((prev) => ({
                         ...prev,
                         preferredModel: modelOption.id,
-                      }))
-                    }
+                      }));
+                    }}
                     className={`text-left rounded-xl border p-4 space-y-1.5 transition-colors ${
-                      selected
-                        ? 'border-violet-600 bg-violet-50 dark:border-[#8B5CF6] dark:bg-[#7C3AED]/15'
-                        : 'border-slate-300 bg-white hover:border-slate-400 dark:border-white/15 dark:bg-[#08080C] dark:hover:border-white/30'
+                      disabled
+                        ? 'border-slate-300 bg-slate-50 opacity-60 cursor-not-allowed dark:border-white/10 dark:bg-[#08080C]'
+                        : selected
+                          ? 'border-violet-600 bg-violet-50 dark:border-[#8B5CF6] dark:bg-[#7C3AED]/15'
+                          : 'border-slate-300 bg-white hover:border-slate-400 dark:border-white/15 dark:bg-[#08080C] dark:hover:border-white/30'
                     }`}
                   >
                     <span className="flex items-center justify-between gap-2">
@@ -541,6 +568,18 @@ export function VisualProfilePage() {
                     <span className="block text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
                       {modelOption.description}
                     </span>
+                    {disabled && (
+                      <span className="block text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                        Precisa de pelo menos {CREDIT_COSTS.generate_pro} créditos para usar — seu
+                        saldo é {user?.credits ?? 0}.{' '}
+                        <Link
+                          to="/planos"
+                          className="font-semibold underline underline-offset-2"
+                        >
+                          Ver planos
+                        </Link>
+                      </span>
+                    )}
                   </button>
                 );
               })}

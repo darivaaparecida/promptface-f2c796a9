@@ -3,12 +3,49 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_PREFERRED_AI_MODEL,
   PREFERRED_AI_MODELS,
+  canUseProModel,
   getAllowedPreferredModels,
   getPreferredAiModelOption,
   normalizePreferredAiModel,
   resolveEffectiveModel,
   resolveGenerationModelPreference,
 } from './aiModels';
+
+test('canUseProModel exige saldo para pelo menos 1 foto Pro', () => {
+  assert.equal(canUseProModel(0), false);
+  assert.equal(canUseProModel(10), false);
+  assert.equal(canUseProModel(19), false);
+  assert.equal(canUseProModel(20), true);
+  assert.equal(canUseProModel(1600), true);
+  assert.equal(canUseProModel(undefined), false);
+});
+
+test('resolveEffectiveModel cai para o 2.1 quando o saldo não cobre o Pro', () => {
+  // Com 10 créditos (o bônus de cadastro) o Pro não pode ser usado.
+  assert.equal(
+    resolveEffectiveModel('free_trial', 'gemini-nano-banana-pro', 10).model,
+    'gemini-nano-banana-2.1'
+  );
+  assert.equal(
+    resolveEffectiveModel('premium', 'gemini-nano-banana-pro', 19).model,
+    'gemini-nano-banana-2.1'
+  );
+  // Com 20 créditos o Pro vale.
+  assert.equal(
+    resolveEffectiveModel('premium', 'gemini-nano-banana-pro', 20).model,
+    'gemini-nano-banana-pro'
+  );
+  // O 2.1 não depende do saldo.
+  assert.equal(
+    resolveEffectiveModel('free_trial', 'gemini-nano-banana-2.1', 0).model,
+    'gemini-nano-banana-2.1'
+  );
+  // Sem saldo informado, não trava (compatibilidade com chamadores antigos).
+  assert.equal(
+    resolveEffectiveModel('premium', 'gemini-nano-banana-pro').model,
+    'gemini-nano-banana-pro'
+  );
+});
 
 test('normalizePreferredAiModel returns valid model ids and falls back to auto', () => {
   assert.equal(normalizePreferredAiModel('gemini-nano-banana-2.1'), 'gemini-nano-banana-2.1');

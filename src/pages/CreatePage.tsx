@@ -353,9 +353,12 @@ export function CreatePage() {
   const hasFaces = faces.length > 0;
   // Custo da geração depende do modelo efetivo: 10 créditos com o 2.1,
   // 20 créditos com o Nano Banana Pro (opção paga de máxima qualidade).
+  // O saldo vai junto: com menos de 20 créditos o Pro salvo cai para o
+  // 2.1, então o usuário nunca fica travado sem conseguir gerar.
   const effectiveGenerationModel = resolveEffectiveModel(
     user?.planId ?? 'free_trial',
-    preferredModel
+    preferredModel,
+    user?.credits ?? 0
   );
   const generationCost =
     effectiveGenerationModel.model === 'gemini-nano-banana-pro'
@@ -1349,7 +1352,7 @@ export function CreatePage() {
                 <dt className="text-slate-600 dark:text-[#A1A1AA]">Modelo de IA</dt>
                 <dd className="text-right">
                   <span className="text-slate-950 dark:text-white font-medium">
-                    {getPreferredAiModelOption(preferredModel).shortLabel}
+                    {getPreferredAiModelOption(effectiveGenerationModel.model).shortLabel}
                   </span>{' '}
                   <Link
                     to="/perfil-visual"
