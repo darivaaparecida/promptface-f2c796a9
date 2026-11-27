@@ -302,7 +302,7 @@ export function CreatePage() {
    * criação já naquele cenário, com o código de quem indicou.
    */
   const handleShareScenarioInvite = async () => {
-    if (!result || !user) return;
+    if (!user) return;
     try {
       const code = await getMyInviteCode();
       const link = `${window.location.origin}${buildScenarioInviteLink(selectedScenarioId, code)}`;
@@ -921,6 +921,20 @@ export function CreatePage() {
                         <p className="text-xs leading-relaxed text-slate-600 dark:text-[#A1A1AA]">
                           {selectedScenario.description}
                         </p>
+                        {user && (
+                          <button
+                            type="button"
+                            onClick={() => void handleShareScenarioInvite()}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 hover:text-violet-900 dark:text-[#A855F7] dark:hover:text-[#C4B5FD]"
+                          >
+                            <Gift className="w-3.5 h-3.5" aria-hidden="true" />
+                            <span>
+                              {copiedInviteNotice
+                                ? 'Link com convite copiado!'
+                                : 'Compartilhar este cenário com meu convite'}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
