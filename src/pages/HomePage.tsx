@@ -19,6 +19,8 @@ import { BeforeAfterShowcase } from '../components/BeforeAfterSlider';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
+import { HomeInvitePromoBanner } from '../components/HomeInvitePromoBanner';
+import { InviteFaqAccordion } from '../components/InviteFaqAccordion';
 import { useAuth } from '../context/AuthContext';
 import { joinWaitlist } from '../lib/db';
 
@@ -487,6 +489,16 @@ export function HomePage() {
           </div>
         )}
       </section>
+
+      {/* INVITE PROMO BANNER */}
+      <div className="border-t border-slate-300 dark:border-white/10">
+        <HomeInvitePromoBanner />
+      </div>
+
+      {/* INVITE & CREDITS FAQ ACCORDION */}
+      <div className="border-t border-slate-300 dark:border-white/10">
+        <InviteFaqAccordion />
+      </div>
 
       {/* FAQ ACCORDION */}
       <section className="mx-auto max-w-4xl px-4 sm:px-6 py-16 border-t border-slate-300 dark:border-white/10">

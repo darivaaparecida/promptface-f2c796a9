@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Check, CheckCircle2, Clock, Copy, Gift, MessageCircle, Share2, UserPlus, Users } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { InfoTooltip } from '../components/InfoTooltip';
 import { getMyInviteCode, getMyInvites, type InviteItem } from '../lib/db';
 import {
   INVITE_GOAL_FRIENDS,
@@ -92,6 +93,8 @@ export function InvitePage() {
       label: 'Amigos que entraram',
       value: joinedCount,
       helper: 'Contas criadas pelo seu link',
+      tooltip:
+        'Total de amigos que concluíram o cadastro usando seu link pessoal de convite.',
       icon: Users,
     },
     {
@@ -99,6 +102,7 @@ export function InvitePage() {
       label: 'Créditos ganhos com convites',
       value: creditsEarned,
       helper: 'Bônus acumulado nas indicações',
+      tooltip: `Soma dos créditos creditados automaticamente (+${INVITE_REWARD_CREDITS} no cadastro, +${INVITE_MILESTONE_REWARD_CREDITS} na 1ª foto e +${INVITE_SUBSCRIPTION_REWARD_CREDITS} em assinaturas).`,
       icon: Gift,
     },
     {
@@ -106,6 +110,8 @@ export function InvitePage() {
       label: 'Seu código de convite',
       value: inviteCode ?? '—',
       helper: 'Use no seu link pessoal',
+      tooltip:
+        'Código exclusivo vinculado à sua conta. Quem se cadastrar com ele fica ligado às suas recompensas.',
       icon: Share2,
     },
   ] as const;
@@ -216,34 +222,45 @@ export function InvitePage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              disabled={!inviteLink}
-              className="min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
+            <InfoTooltip
+              className="w-full sm:w-auto"
+              text={`Copie seu link único para enviar onde quiser. Cada cadastro aprovado rende ${INVITE_REWARD_CREDITS} créditos.`}
             >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4" aria-hidden="true" />
-                  <span>Link copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" aria-hidden="true" />
-                  <span>Copiar link</span>
-                </>
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                disabled={!inviteLink}
+                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4" aria-hidden="true" />
+                    <span>Link copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" aria-hidden="true" />
+                    <span>Copiar link</span>
+                  </>
+                )}
+              </button>
+            </InfoTooltip>
 
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-emerald-700/45 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50 text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap shrink-0"
+            <InfoTooltip
+              align="right"
+              className="w-full sm:w-auto"
+              text="Abre o WhatsApp com uma mensagem pronta contendo o seu link pessoal de convite."
             >
-              <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Compartilhar no WhatsApp</span>
-            </a>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-emerald-700/45 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50 text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap shrink-0"
+              >
+                <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Compartilhar no WhatsApp</span>
+              </a>
+            </InfoTooltip>
           </div>
         </div>
       </section>
@@ -259,8 +276,13 @@ export function InvitePage() {
                 className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 space-y-3 shadow-sm dark:shadow-none"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-medium text-slate-600 dark:text-[#A1A1AA]">
-                    {item.label}
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-[#A1A1AA]">
+                    <span>{item.label}</span>
+                    <InfoTooltip
+                      label={`Explicação: ${item.label}`}
+                      text={item.tooltip}
+                      align="left"
+                    />
                   </span>
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-violet-700 dark:bg-white/5 dark:text-[#A855F7]">
                     <Icon className="w-4 h-4" aria-hidden="true" />
@@ -284,9 +306,16 @@ export function InvitePage() {
         className="rounded-2xl border border-violet-600/40 bg-gradient-to-r from-violet-600/10 via-fuchsia-500/10 to-violet-600/10 dark:border-[#8B5CF6]/40 p-5 sm:p-6"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
-            Meta de indicação
-          </h2>
+          <div className="inline-flex items-center gap-1.5">
+            <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+              Meta de indicação
+            </h2>
+            <InfoTooltip
+              label="Como funciona a meta de indicação"
+              text={`A barra acompanha até ${INVITE_GOAL_FRIENDS} amigos convidados e destaca os marcos de bônus por cadastro, 1ª foto e assinatura.`}
+              align="left"
+            />
+          </div>
           <span className="text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
             {Math.min(friends.length, INVITE_GOAL_FRIENDS)} de {INVITE_GOAL_FRIENDS} amigos
           </span>
@@ -375,15 +404,31 @@ export function InvitePage() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   {isJoined ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-                      <span>entrou</span>
-                    </span>
+                    <InfoTooltip
+                      align="right"
+                      text={`Conta confirmada pelo seu link! Você já recebeu ${INVITE_REWARD_CREDITS} créditos por este convite.`}
+                    >
+                      <span
+                        tabIndex={0}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/35 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-500/35 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                        <span>entrou</span>
+                      </span>
+                    </InfoTooltip>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                      <Clock className="w-4 h-4 shrink-0" aria-hidden="true" />
-                      <span>pendente</span>
-                    </span>
+                    <InfoTooltip
+                      align="right"
+                      text="Convite registrado, aguardando seu amigo finalizar o cadastro para liberar os créditos."
+                    >
+                      <span
+                        tabIndex={0}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-600/35 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-300"
+                      >
+                        <Clock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                        <span>pendente</span>
+                      </span>
+                    </InfoTooltip>
                   )}
                 </div>
               </li>

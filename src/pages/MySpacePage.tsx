@@ -53,6 +53,7 @@ import {
 import { useToast } from '../context/ToastContext';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { MySpaceDashboard } from '../components/MySpaceDashboard';
+import { MySpaceActivityHistory } from '../components/MySpaceActivityHistory';
 import { PhotoLightboxModal } from '../components/PhotoLightboxModal';
 import { PhotoComparisonModal } from '../components/PhotoComparisonModal';
 import { FloatingBatchToolbar } from '../components/FloatingBatchToolbar';
@@ -252,6 +253,8 @@ export function MySpacePage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [showOrganizePanel, setShowOrganizePanel] = useState(false);
+  const [showBatchBar, setShowBatchBar] = useState(false);
   const [exportFormat, setExportFormat] = useState<SocialExportFormatId>('original');
   const [appliedFilters, setAppliedFilters] = useState<Record<string, ArtisticFilterId>>(
     loadSavedFilters
@@ -1130,27 +1133,53 @@ export function MySpacePage() {
       ) : (
         <>
           {!errorMsg && (
-            <MySpaceDashboard
-              generations={generations}
-              remainingCredits={user?.credits ?? 0}
-              planId={subscription?.planId ?? user?.planId}
-              ledger={ledger}
-              recentGenerations={generations}
-              onOpenGeneration={(item) => {
-                const full = generations.find((g) => g.id === item.id);
-                if (full) setLightboxItem(full);
-              }}
-            />
+            <>
+              <MySpaceDashboard
+                generations={generations}
+                remainingCredits={user?.credits ?? 0}
+                planId={subscription?.planId ?? user?.planId}
+                ledger={ledger}
+                defaultExpandedCharts={activeTab === 'creditos'}
+              />
+              <MySpaceActivityHistory
+                generations={generations}
+                getMediaUrl={getMediaUrl}
+                downloadingId={downloadingId}
+                deletingPhotoId={deletingPhotoId}
+                defaultExpanded={activeTab === 'historico'}
+                onDownload={(item) => {
+                  const full = generations.find((g) => g.id === item.id);
+                  if (full) void handleDownloadImage(full);
+                }}
+                onDelete={(id) => void handleDeleteGeneration(id)}
+                onOpen={(item) => {
+                  const full = generations.find((g) => g.id === item.id);
+                  if (full) setLightboxItem(full);
+                }}
+              />
+            </>
           )}
           {/* TAB 1 & 2: GALLERY & FAVORITES */}
-          {(activeTab === 'fotos' || activeTab === 'favoritos') && (
-            <div className="space-y-6">
+          {(activeTab === 'fotos' || activeTab === 'favoritos') && (() => {
+            const activeExtraFilters =
+              (categoryFilter !== 'all' ? 1 : 0) +
+              (folderFilter !== 'all' ? 1 : 0) +
+              (tagFilter !== 'all' ? 1 : 0) +
+              (dateFilter !== 'all' ? 1 : 0);
+            const isOrganizeVisible =
+              showOrganizePanel ||
+              activeExtraFilters > 0 ||
+              (tourOpen && tourStep === 0);
+            const isBatchVisible = showBatchBar || selectedIds.length > 0;
+
+            return (
+            <div className="space-y-4">
               <div
-                className={`flex flex-col lg:flex-row lg:flex-wrap gap-3 rounded-2xl transition-all ${
+                className={`flex flex-col md:flex-row md:items-center gap-2.5 rounded-2xl transition-all ${
                   tourOpen && tourStep === 2 ? 'ring-2 ring-[#A855F7]/70 p-2 bg-violet-50/70 dark:bg-[#17171F]/50' : ''
                 }`}
               >
-                <div className="relative w-full lg:flex-1 lg:min-w-[280px]">
+                <div className="relative flex-1 min-w-0">
                   <Search className="w-4 h-4 text-slate-500 dark:text-[#A1A1AA] absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden="true" />
                   <input
                     type="search"
@@ -1161,78 +1190,118 @@ export function MySpacePage() {
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 placeholder:text-slate-500 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
                   />
                 </div>
-                <select
-                  aria-label="Filtrar por categoria"
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
-                >
-                  <option value="all">Todas as categorias</option>
-                  {uniqueCategories.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filtrar por pasta"
-                  value={folderFilter}
-                  onChange={(e) => setFolderFilter(e.target.value)}
-                  className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
-                >
-                  <option value="all">Todas as pastas ({folderCounts.total})</option>
-                  <option value="unfiled">Sem pasta ({folderCounts.unfiled})</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      Pasta: {folder.name} ({folderCounts.byFolderId[folder.id] || 0})
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filtrar por tag"
-                  value={tagFilter}
-                  onChange={(e) => setTagFilter(e.target.value)}
-                  className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
-                >
-                  <option value="all">Todas as tags ({generations.length})</option>
-                  <option value="untagged">Sem tags ({tagStats.untaggedCount})</option>
-                  {tagStats.availableTags.map((tagName) => (
-                    <option key={tagName} value={tagName}>
-                      Tag: {tagName} ({tagStats.countsByTag[tagName] || 0})
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Filtrar por data"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as 'all' | '7d' | '30d')}
-                  className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
-                >
-                  <option value="all">Qualquer data</option>
-                  <option value="7d">Últimos 7 dias</option>
-                  <option value="30d">Últimos 30 dias</option>
-                </select>
-                {activeTab === 'fotos' && (
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {activeTab === 'fotos' && (
+                    <button
+                      type="button"
+                      aria-pressed={onlyFavorites}
+                      onClick={() => setOnlyFavorites((prev) => !prev)}
+                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap ${
+                        onlyFavorites
+                          ? 'bg-pink-50 border-pink-600 text-pink-950 dark:bg-[#EC4899]/15 dark:border-[#EC4899] dark:text-white'
+                          : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white'
+                      }`}
+                    >
+                      <Heart
+                        className={`w-3.5 h-3.5 ${
+                          onlyFavorites ? 'fill-[#EC4899] text-[#EC4899]' : ''
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span>Favoritas ({favoriteCount})</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    aria-pressed={onlyFavorites}
-                    onClick={() => setOnlyFavorites((prev) => !prev)}
-                    className={`inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-colors whitespace-nowrap ${
-                      onlyFavorites
-                        ? 'bg-pink-50 border-pink-600 text-pink-950 dark:bg-[#EC4899]/15 dark:border-[#EC4899] dark:text-white'
+                    aria-expanded={isOrganizeVisible}
+                    onClick={() => setShowOrganizePanel((prev) => !prev)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap ${
+                      isOrganizeVisible
+                        ? 'bg-violet-50 border-violet-700 text-violet-950 dark:bg-[#7C3AED]/20 dark:border-[#8B5CF6] dark:text-white'
                         : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white'
                     }`}
                   >
-                    <Heart
-                      className={`w-4 h-4 ${
-                        onlyFavorites ? 'fill-[#EC4899] text-[#EC4899]' : ''
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <span>Somente favoritas ({favoriteCount})</span>
+                    <Folder className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+                    <span>
+                      Pastas, tags e filtros{activeExtraFilters > 0 ? ` (${activeExtraFilters})` : ''}
+                    </span>
                   </button>
-                )}
+
+                  {filteredPhotos.length > 0 && (
+                    <button
+                      type="button"
+                      aria-expanded={isBatchVisible}
+                      onClick={() => setShowBatchBar((prev) => !prev)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap ${
+                        isBatchVisible
+                          ? 'bg-violet-50 border-violet-700 text-violet-950 dark:bg-[#7C3AED]/20 dark:border-[#8B5CF6] dark:text-white'
+                          : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-[#A1A1AA] dark:hover:text-white'
+                      }`}
+                    >
+                      <CheckSquare className="w-3.5 h-3.5 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+                      <span>{selectedIds.length > 0 ? `Selecionadas (${selectedIds.length})` : 'Selecionar / ZIP'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {isOrganizeVisible && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <select
+                    aria-label="Filtrar por categoria"
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
+                  >
+                    <option value="all">Todas as categorias</option>
+                    {uniqueCategories.map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filtrar por pasta"
+                    value={folderFilter}
+                    onChange={(e) => setFolderFilter(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
+                  >
+                    <option value="all">Todas as pastas ({folderCounts.total})</option>
+                    <option value="unfiled">Sem pasta ({folderCounts.unfiled})</option>
+                    {folders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        Pasta: {folder.name} ({folderCounts.byFolderId[folder.id] || 0})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filtrar por tag"
+                    value={tagFilter}
+                    onChange={(e) => setTagFilter(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
+                  >
+                    <option value="all">Todas as tags ({generations.length})</option>
+                    <option value="untagged">Sem tags ({tagStats.untaggedCount})</option>
+                    {tagStats.availableTags.map((tagName) => (
+                      <option key={tagName} value={tagName}>
+                        Tag: {tagName} ({tagStats.countsByTag[tagName] || 0})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Filtrar por data"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value as 'all' | '7d' | '30d')}
+                    className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm text-slate-950 dark:bg-[#17171F] dark:border-white/15 dark:text-white"
+                  >
+                    <option value="all">Qualquer data</option>
+                    <option value="7d">Últimos 7 dias</option>
+                    <option value="30d">Últimos 30 dias</option>
+                  </select>
+                </div>
 
               {/* Pastas (Folders) navigation & CRUD panel */}
               <section
@@ -1603,8 +1672,10 @@ export function MySpacePage() {
                   </button>
                 </div>
               </section>
+              </div>
+              )}
 
-              {filteredPhotos.length > 0 && (
+              {isBatchVisible && filteredPhotos.length > 0 && (
                 <div className="rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-sm dark:shadow-none">
                   <div className="flex flex-wrap items-center gap-3">
                     <button
@@ -1754,7 +1825,7 @@ export function MySpacePage() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 items-start">
                   {filteredPhotos.map((item) => {
                     const isSelected = selectedIds.includes(item.id);
                     const activeFilterId = appliedFilters[item.id] ?? 'original';
@@ -1867,7 +1938,7 @@ export function MySpacePage() {
                           </div>
                         </div>
 
-                        <div className="p-4 space-y-3">
+                        <div className="p-3.5 sm:p-4 space-y-2.5">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
@@ -2145,7 +2216,8 @@ export function MySpacePage() {
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* TAB: PROMPT HISTORY */}
           {activeTab === 'prompts' && (

@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { getThemeShortLabel, getThemeToggleLabel } from '../shared/theme';
 import { BrandLogo } from './BrandLogo';
 import { CreditIndicator } from './CreditIndicator';
+import { WelcomeTour } from './WelcomeTour';
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -34,6 +35,7 @@ export function Navbar() {
   const veryLowCredits = user != null && user.credits < 10;
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-slate-300/90 bg-white/95 dark:border-white/10 dark:bg-[#08080C]/90 backdrop-blur-md transition-colors duration-200">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
         {/* Zone 1: Brand lockup */}
@@ -53,10 +55,10 @@ export function Navbar() {
           <NavLink to="/cenarios" className={navLinkClass}>
             Cenários
           </NavLink>
-          <NavLink to="/criar" className={navLinkClass}>
+          <NavLink to="/criar" data-welcome-tour="geracao" className={navLinkClass}>
             Criar
           </NavLink>
-          <NavLink to="/studio" className={navLinkClass}>
+          <NavLink to="/studio" data-welcome-tour="estudio" className={navLinkClass}>
             Studio
           </NavLink>
           <NavLink to="/planos" className={navLinkClass}>
@@ -104,6 +106,7 @@ export function Navbar() {
               )}
               <Link
                 to="/meu-espaco"
+                data-welcome-tour="perfil"
                 className="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]"
               >
                 Meu Espaço
@@ -243,5 +246,7 @@ export function Navbar() {
         </div>
       )}
     </header>
+    <WelcomeTour />
+    </>
   );
 }
