@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Gift, Menu, Moon, Sun, X } from 'lucide-react';
+import { Gift, Menu, Moon, Sun, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { getThemeShortLabel, getThemeToggleLabel } from '../shared/theme';
@@ -29,9 +29,6 @@ export function Navbar() {
   const toggleLabel = getThemeToggleLabel(theme);
   const toggleShort = getThemeShortLabel(theme);
 
-  // Aviso de créditos baixos: abaixo de 20 créditos, mostrar alerta com link para /planos.
-  const LOW_CREDITS_THRESHOLD = 20;
-  const lowCredits = user != null && user.credits < LOW_CREDITS_THRESHOLD;
   // Saldo crítico: abaixo de 10 créditos, oferecer também ganhar créditos
   // convidando amigos, não só assinar um plano.
   const veryLowCredits = user != null && user.credits < 10;
@@ -92,19 +89,6 @@ export function Navbar() {
           {user ? (
             <>
               <CreditIndicator />
-              {lowCredits && (
-                <Link
-                  to="/planos"
-                  aria-label={`Créditos baixos: ${user.credits} créditos restantes. Ver planos para recarregar.`}
-                  title="Seus créditos estão acabando — ver planos"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-500/60 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                >
-                  <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse" aria-hidden="true" />
-                  <span>
-                    Recarregar
-                  </span>
-                </Link>
-              )}
               {veryLowCredits && (
                 <Link
                   to="/convites"
@@ -228,16 +212,6 @@ export function Navbar() {
                 >
                   Meu Espaço ({user.credits} créditos)
                 </Link>
-                {lowCredits && (
-                  <Link
-                    to="/planos"
-                    onClick={() => setMobileOpen(false)}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-center text-sm font-semibold text-amber-700 bg-amber-500/10 border border-amber-500/60 dark:text-amber-300"
-                  >
-                    <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse" aria-hidden="true" />
-                    Créditos baixos: {user.credits} restantes — Ver planos
-                  </Link>
-                )}
                 {veryLowCredits && (
                   <Link
                     to="/convites"
