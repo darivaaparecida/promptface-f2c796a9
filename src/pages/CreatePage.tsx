@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Copy,
   Download,
+  Gift,
   Heart,
   LayoutGrid,
   PenLine,
@@ -37,6 +38,8 @@ import {
 } from '../shared/aiModels';
 import { useAuth } from '../context/AuthContext';
 import { getVisualProfile, joinWaitlist, listFaces, toggleFavorite } from '../lib/db';
+import { getMyInviteCode } from '../lib/db';
+import { buildScenarioInviteLink, saveInviteCode } from '../shared/invites';
 import { useToast } from '../context/ToastContext';
 import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
 import { ButtonSpinner } from '../components/ButtonSpinner';
@@ -78,6 +81,13 @@ export function CreatePage() {
   const { user, config, updateCredits, refreshConfig, getMediaUrl } = useAuth();
   const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Chegada por link de convite com cenário (?ref=CODIGO): guarda o código
+  // no navegador para aplicar no cadastro, mesmo sem estar logado.
+  useEffect(() => {
+    saveInviteCode(searchParams.get('ref'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const initialPromptParam = searchParams.get('prompt') || '';
   const initialMode =
@@ -124,6 +134,7 @@ export function CreatePage() {
   const [waitlistFeedback, setWaitlistFeedback] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [copiedNotice, setCopiedNotice] = useState(false);
+  const [copiedInviteNotice, setCopiedInviteNotice] = useState(false);
 
   void updateCredits;
   void refreshConfig;
@@ -283,6 +294,36 @@ export function CreatePage() {
     await navigator.clipboard.writeText(`${shareText} — ${window.location.origin}`);
     setCopiedNotice(true);
     setTimeout(() => setCopiedNotice(false), 2500);
+  };
+
+  /**
+   * Compartilha o cenário com o convite junto: quem abrir o link cai na
+   * criação já naquele cenário, com o código de quem indicou.
+   */
+  const handleShareScenarioInvite = async () => {
+    if (!result || !user) return;
+    try {
+      const code = await getMyInviteCode();
+      const link = `${window.location.origin}${buildScenarioInviteLink(selectedScenarioId, code)}`;
+      const shareText = `Cria sua foto nesse cenário no PromptFace: ${link}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: 'PromptFace', text: shareText, url: link });
+          return;
+        } catch {
+          // Fallback to copy
+        }
+      }
+      await navigator.clipboard.writeText(link);
+      setCopiedInviteNotice(true);
+      setTimeout(() => setCopiedInviteNotice(false), 2500);
+    } catch {
+      addToast({
+        variant: 'info',
+        title: 'Não foi possível gerar o link de convite',
+        description: 'Tente novamente em instantes.',
+      });
+    }
   };
 
   const handleBetaWaitlist = async (e: React.FormEvent) => {
@@ -481,6 +522,27 @@ export function CreatePage() {
                   <>
                     <Share2 className="w-4 h-4" aria-hidden="true" />
                     Compartilhar
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleShareScenarioInvite}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-600/40 bg-violet-600/10 text-xs font-medium text-violet-700 hover:bg-violet-600/20 dark:border-[#8B5CF6]/40 dark:bg-[#8B5CF6]/10 dark:text-[#A855F7] dark:hover:bg-[#8B5CF6]/20"
+              >
+                {copiedInviteNotice ? (
+                  <>
+                    <Check
+                      className="w-4 h-4 text-emerald-600 dark:text-emerald-400"
+                      aria-hidden="true"
+                    />
+                    Link com convite copiado
+                  </>
+                ) : (
+                  <>
+                    <Gift className="w-4 h-4" aria-hidden="true" />
+                    Compartilhar cenário com meu convite
                   </>
                 )}
               </button>

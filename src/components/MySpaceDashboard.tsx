@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Coins, ImagePlus } from 'lucide-react';
+import { InviteCard } from './InviteCard';
 import {
   Bar,
   BarChart,
@@ -558,6 +559,9 @@ export function MySpaceDashboard({
           )}
         </div>
       </div>
+
+      {/* Indique e ganhe */}
+      <InviteCard />
     </section>
   );
 }

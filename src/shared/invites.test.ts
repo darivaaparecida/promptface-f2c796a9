@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   INVITE_CODE_LENGTH,
   buildInviteLink,
+  buildInviteRefLink,
   buildInviteShareMessage,
+  buildScenarioInviteLink,
+  creditsToNextPhoto,
   isValidInviteCode,
   normalizeInviteCode,
 } from './invites';
@@ -36,4 +39,24 @@ test('buildInviteLink and buildInviteShareMessage use the public URL', () => {
   const message = buildInviteShareMessage(link);
   assert.ok(message.includes(link));
   assert.ok(message.includes('PromptFace'));
+});
+
+test('buildScenarioInviteLink and buildInviteRefLink carry the code', () => {
+  assert.equal(
+    buildScenarioInviteLink('praia-por-do-sol', 'abcd2345'),
+    '/criar?cenario=praia-por-do-sol&ref=ABCD2345'
+  );
+  assert.equal(
+    buildInviteRefLink('abcd2345'),
+    'https://www.promptface.com.br/?ref=ABCD2345'
+  );
+});
+
+test('creditsToNextPhoto counts down to the next 10-credit photo', () => {
+  assert.equal(creditsToNextPhoto(0), 10);
+  assert.equal(creditsToNextPhoto(15), 5);
+  assert.equal(creditsToNextPhoto(10), 10);
+  assert.equal(creditsToNextPhoto(20), 10);
+  assert.equal(creditsToNextPhoto(27), 3);
+  assert.equal(creditsToNextPhoto(-4), 10);
 });

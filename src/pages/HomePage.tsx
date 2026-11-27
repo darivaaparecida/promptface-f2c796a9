@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -14,6 +14,7 @@ import {
   type ScenarioItem,
 } from '../shared/catalog';
 import { getPlanCyclePricing } from '../shared/plansCalculator';
+import { saveInviteCode } from '../shared/invites';
 import { BeforeAfterShowcase } from '../components/BeforeAfterSlider';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ButtonSpinner } from '../components/ButtonSpinner';
@@ -23,6 +24,14 @@ import { joinWaitlist } from '../lib/db';
 
 export function HomePage() {
   const { user, config } = useAuth();
+  const [searchParams] = useSearchParams();
+
+  // Chegada por link de convite curto (/?ref=CODIGO): guarda o código no
+  // navegador para aplicar no cadastro, mesmo sem estar logado.
+  useEffect(() => {
+    saveInviteCode(searchParams.get('ref'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [categories] = useState<CategoryItem[]>(CATEGORIES);
   const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
   const [plans] = useState<PlanDefinition[]>(INITIAL_PLANS);

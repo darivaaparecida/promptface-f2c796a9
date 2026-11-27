@@ -8,6 +8,7 @@
 // chaves secretas e chegam na Fase 2 via Edge Functions do Supabase.
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
+import { notifyCreditsChanged } from '../shared/creditsEvents';
 import type { AuthUser } from '../context/AuthContext';
 import {
   CATEGORIES,
@@ -671,6 +672,10 @@ export async function uploadFace(file: File, consentAccepted: boolean): Promise<
     await supabase.storage.from(FACE_REFERENCES_BUCKET).remove([storagePath]);
     throw toError(error, 'Não foi possível salvar sua foto de referência.');
   }
+  // Marco de convite: a 1ª foto de referência paga +5 para quem indicou e +5
+  // para quem foi indicado. Nunca quebra o envio (a função devolve false).
+  const milestonePaid = await checkInviteMilestone('first_photo');
+  if (milestonePaid) notifyCreditsChanged();
   const url = await getSignedMediaUrl(FACE_REFERENCES_BUCKET, storagePath);
   return faceFromRow(data as Row, url);
 }
@@ -1261,6 +1266,10 @@ export interface InviteItem {
   invitedEmail: string;
   status: 'pending' | 'converted';
   rewardCredits: number;
+  /** Bônus de marco (+5) já pago para este convite. */
+  milestoneRewardPaid: boolean;
+  /** Bônus de assinatura (+30) já pago para este convite. */
+  subscriptionBonusPaid: boolean;
   createdAt: string;
   convertedAt: string | null;
 }
@@ -1291,9 +1300,46 @@ export async function getMyInvites(): Promise<InviteItem[]> {
     invitedEmail: String(row.invited_email ?? ''),
     status: row.status === 'pending' ? 'pending' : 'converted',
     rewardCredits: Number(row.reward_credits ?? 0),
+    milestoneRewardPaid: row.milestone_reward_paid === true,
+    subscriptionBonusPaid: row.subscription_bonus_paid === true,
     createdAt: String(row.created_at ?? ''),
     convertedAt: row.converted_at ? String(row.converted_at) : null,
   }));
+}
+
+/** Paga o bônus de marco (+5/+5) quando o usuário atinge um marco real. */
+export async function checkInviteMilestone(
+  milestone: 'first_photo' | 'first_generation'
+): Promise<boolean> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.rpc('check_invite_milestone', {
+      p_milestone: milestone,
+    });
+    if (error) return false;
+    return data === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Bônus de assinatura (+30 convidador / +10 amigo). Fase 2: chamar no
+ * webhook do Stripe quando o pagamento do 1º mês confirmar.
+ */
+export async function grantSubscriptionReferralBonus(
+  userId: string
+): Promise<boolean> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.rpc('grant_subscription_referral_bonus', {
+      p_user_id: userId,
+    });
+    if (error) return false;
+    return data === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function adminCreateNotice(

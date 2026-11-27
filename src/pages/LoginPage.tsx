@@ -13,6 +13,11 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { HERO_SHOWCASE_IMAGES, INITIAL_PLANS } from '../shared/catalog';
 import { normalizeInviteCode } from '../shared/invites';
+import {
+  clearStoredInviteCode,
+  getStoredInviteCode,
+  saveInviteCode,
+} from '../shared/invites';
 import { getPlanCyclePricing } from '../shared/plansCalculator';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
@@ -23,7 +28,8 @@ type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   /** Código de convite do link /convite/CODIGO (vai para o cadastro). */
-  const inviteCode = normalizeInviteCode(searchParams.get('convite'));
+  const inviteCode =
+    normalizeInviteCode(searchParams.get('convite')) ?? getStoredInviteCode();
   const initialMode: AuthMode =
     searchParams.get('modo') === 'cadastro' || inviteCode ? 'register' : 'login';
 
@@ -77,6 +83,7 @@ export function LoginPage() {
 
   // Chegada por link de convite: o cadastro já abre com o código aplicado.
   useEffect(() => {
+    saveInviteCode(searchParams.get('convite'));
     if (inviteCode && !user) {
       setInfoMsg(
         'Você chegou por um convite! Crie sua conta e quem te convidou ganha 10 créditos.'
@@ -118,6 +125,7 @@ export function LoginPage() {
         setErrorMsg(error);
         return;
       }
+      clearStoredInviteCode();
       if (confirmationSent) {
         setMode('verify');
         setInfoMsg('Cadastro realizado! Confirme seu e-mail para liberar seus 10 créditos grátis.');
