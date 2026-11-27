@@ -130,6 +130,7 @@ export function MySpaceDashboard({
     [recentGenerations]
   );
   const isFreeTrial = (planId ?? 'free_trial') === 'free_trial';
+  const isPremium = planId === 'premium';
 
   const gridStroke = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.1)';
   const tickColor = isDark ? '#A1A1AA' : '#334155';
@@ -516,29 +517,45 @@ export function MySpaceDashboard({
             <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
               {isFreeTrial
                 ? 'Precisa de mais fotos?'
-                : `Plano ${creditsOverview.planLabel} — quer mais volume?`}
+                : isPremium
+                  ? 'Você está no maior plano'
+                  : `${creditsOverview.planLabel} — quer mais volume?`}
             </h2>
             <p className="mt-0.5 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
               {isFreeTrial
                 ? 'Você está no teste grátis. Assine um plano e gere fotos todos os meses, sem ficar sem créditos.'
-                : 'Faça upgrade para gerar mais fotos por mês e liberar o Nano Banana Pro com mais frequência.'}
+                : isPremium
+                  ? `O Nano Banana Pro já está liberado para você nas opções de modelo — custa 20 créditos por foto. Você tem ${creditsOverview.remainingCredits} créditos neste mês.`
+                  : 'Faça upgrade para gerar mais fotos por mês. O Nano Banana Pro já está liberado para você — custa 20 créditos por foto.'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <Link
-            to="/planos"
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 whitespace-nowrap"
-          >
-            Fazer upgrade
-            <ArrowRight className="w-4 h-4" aria-hidden="true" />
-          </Link>
-          <Link
-            to="/planos"
-            className="text-xs font-medium text-violet-700 hover:text-violet-900 dark:text-[#8B5CF6] dark:hover:text-[#A855F7] whitespace-nowrap"
-          >
-            Comparar planos
-          </Link>
+          {isPremium ? (
+            <Link
+              to="/criar"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 whitespace-nowrap"
+            >
+              Gerar foto
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/planos"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 whitespace-nowrap"
+              >
+                Fazer upgrade
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </Link>
+              <Link
+                to="/planos"
+                className="text-xs font-medium text-violet-700 hover:text-violet-900 dark:text-[#8B5CF6] dark:hover:text-[#A855F7] whitespace-nowrap"
+              >
+                Comparar planos
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </section>
