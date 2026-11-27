@@ -1,3 +1,6 @@
+// Nota de deploy (27/11/2026): este commit só existe para disparar um novo
+// deployment na Vercel — o webhook do commit anterior (0e858bf, Studio em
+// 4 abas) não disparou e o site ficou na versão antiga.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
