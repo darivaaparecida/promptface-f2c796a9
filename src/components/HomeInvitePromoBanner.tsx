@@ -98,7 +98,8 @@ export function HomeInvitePromoBanner() {
                   +{INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos extras
                 </p>
                 <p className="text-xs text-slate-600 dark:text-[#A1A1AA]">
-                  Sempre que um indicado assinar qualquer plano
+                  Quando um indicado assinar o primeiro plano. Seu amigo ganha +10
+                  créditos no 1º mês.
                 </p>
               </div>
             </div>

@@ -13,7 +13,7 @@ import {
 const INVITE_FAQ_ITEMS = [
   {
     q: 'Como funciona o ganho de créditos no sistema de convites?',
-    a: `Ao compartilhar seu link pessoal disponível em /convites, você ganha ${INVITE_REWARD_CREDITS} créditos assim que seu amigo cria a conta. Quando ele envia a 1ª foto de referência facial, vocês dois ganham mais ${INVITE_MILESTONE_REWARD_CREDITS} créditos bônus. E se ele assinar um plano, você recebe mais ${INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos.`,
+    a: `Ao compartilhar seu link pessoal disponível em /convites, você ganha ${INVITE_REWARD_CREDITS} créditos assim que seu amigo cria a conta. Quando ele envia a 1ª foto de referência facial, vocês dois ganham mais ${INVITE_MILESTONE_REWARD_CREDITS} créditos bônus. E se ele assinar o primeiro plano, você recebe mais ${INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos.`,
   },
   {
     q: 'O que o meu amigo convidado ganha ao entrar pelo link?',
@@ -25,7 +25,7 @@ const INVITE_FAQ_ITEMS = [
   },
   {
     q: 'Existe limite mensal de convites ou regras de segurança?',
-    a: `O bônus extra de 1ª foto é limitado a ${INVITE_FREE_BONUS_MONTHLY_CAP} amigos por mês (${INVITE_FREE_BONUS_MONTHLY_CAP * INVITE_MILESTONE_REWARD_CREDITS} créditos), enquanto o bônus de ${INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos por assinatura não tem limite. Para manter o programa justo, autoindicação é bloqueada e cada conta só gera recompensa uma vez.`,
+    a: `O bônus extra de 1ª foto é limitado a ${INVITE_FREE_BONUS_MONTHLY_CAP} amigos por mês (${INVITE_FREE_BONUS_MONTHLY_CAP * INVITE_MILESTONE_REWARD_CREDITS} créditos), enquanto o bônus de ${INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos pela primeira assinatura de cada amigo não tem limite mensal. Para manter o programa justo, autoindicação é bloqueada e cada conta só gera recompensa uma vez.`,
   },
   {
     q: 'Onde acompanho meus amigos convidados e meu saldo ganho?',

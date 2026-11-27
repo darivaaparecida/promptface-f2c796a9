@@ -102,7 +102,7 @@ export function InvitePage() {
       label: 'Créditos ganhos com convites',
       value: creditsEarned,
       helper: 'Bônus acumulado nas indicações',
-      tooltip: `Soma dos créditos creditados automaticamente (+${INVITE_REWARD_CREDITS} no cadastro, +${INVITE_MILESTONE_REWARD_CREDITS} na 1ª foto e +${INVITE_SUBSCRIPTION_REWARD_CREDITS} em assinaturas).`,
+      tooltip: `Soma dos créditos creditados automaticamente (+${INVITE_REWARD_CREDITS} no cadastro, +${INVITE_MILESTONE_REWARD_CREDITS} na 1ª foto e +${INVITE_SUBSCRIPTION_REWARD_CREDITS} na primeira assinatura).`,
       icon: Gift,
     },
     {
@@ -349,7 +349,7 @@ export function InvitePage() {
               {INVITE_GOAL_FRIENDS - friends.length === 1 ? 'amigo' : 'amigos'} para a
               meta. Cada amigo que criar a conta rende {INVITE_REWARD_CREDITS} créditos
               para você — e quando ele enviar a 1ª foto, vocês dois ganham mais{' '}
-              {INVITE_MILESTONE_REWARD_CREDITS}. Se ele assinar um plano, você ganha{' '}
+              {INVITE_MILESTONE_REWARD_CREDITS}. Se ele assinar o primeiro plano, você ganha{' '}
               {INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos.
             </>
           )}
@@ -457,7 +457,7 @@ export function InvitePage() {
             <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
               {INVITE_REWARD_CREDITS} créditos quando o amigo cria a conta pelo seu
               link, mais {INVITE_MILESTONE_REWARD_CREDITS} quando ele enviar a 1ª foto
-              de referência. Se ele assinar qualquer plano, você ganha{' '}
+              de referência. Se ele assinar o primeiro plano, você ganha{' '}
               {INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos.
             </p>
           </details>
@@ -477,7 +477,8 @@ export function InvitePage() {
             </summary>
             <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
               O bônus de 1ª foto é limitado a 5 por mês (25 créditos). O bônus por
-              assinatura não tem limite — cada amigo que assinar rende 30 créditos.
+              assinatura não tem limite mensal — cada amigo que assinar o primeiro
+              plano rende 30 créditos, uma vez por amigo.
             </p>
           </details>
           <details className="rounded-xl border border-slate-200 dark:border-white/10 px-4 py-3">
