@@ -37,7 +37,7 @@ const STEPS: TourStep[] = [
     shortLabel: 'Gerar',
     title: '3. Confira o resumo e gere sua foto',
     text: 'Veja formato, modelo e custo exato em créditos no painel à direita e clique em Confirmar e gerar foto.',
-    tip: 'Cada foto custa 10 créditos (20 no Nano Banana Pro). Se houver qualquer falha, o estorno é automático.',
+    tip: 'Cada foto custa 10 créditos (20 no Nano Banana Pro). Se a foto não sair, você não paga nada — a cobrança só acontece depois que a geração dá certo.',
     target: '[data-tour="generate"]',
     desktopSide: 'left',
   },
