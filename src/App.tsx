@@ -15,6 +15,7 @@ import { VisualProfilePage } from './pages/VisualProfilePage';
 import { MySpacePage } from './pages/MySpacePage';
 import { PlansPage } from './pages/PlansPage';
 import { LoginPage } from './pages/LoginPage';
+import { InvitePage } from './pages/InvitePage';
 import { AdminPage } from './pages/AdminPage';
 import { LgpdPage, PrivacyPage, TermsPage } from './pages/LegalPages';
 
@@ -52,6 +53,7 @@ function AppShell() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/cenarios" element={<ScenariosPage />} />
                 <Route path="/planos" element={<PlansPage />} />
+                <Route path="/convites" element={<InvitePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/termos" element={<TermsPage />} />
                 <Route path="/privacidade" element={<PrivacyPage />} />
