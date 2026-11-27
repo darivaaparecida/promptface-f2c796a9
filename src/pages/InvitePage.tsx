@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CheckCircle2, Clock, Copy, Gift, MessageCircle, Share2, Twitter, UserPlus, Users } from 'lucide-react';
+import { Check, CheckCircle2, Clock, Copy, Gift, MessageCircle, Share2, UserPlus, Users } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { getMyInviteCode, getMyInvites, type InviteItem } from '../lib/db';
@@ -71,9 +71,6 @@ export function InvitePage() {
   const shareMessage = inviteLink ? buildInviteShareMessage(inviteLink) : '';
   const whatsappUrl = inviteLink
     ? `https://wa.me/?text=${encodeURIComponent(shareMessage)}`
-    : undefined;
-  const twitterUrl = inviteLink
-    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`
     : undefined;
 
   const friends: InvitedFriend[] = useMemo(
@@ -247,19 +244,6 @@ export function InvitePage() {
               <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Compartilhar no WhatsApp</span>
             </a>
-
-            {twitterUrl && (
-              <a
-                href={twitterUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Compartilhar convite no X"
-                className="min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-slate-300 bg-white text-slate-950 hover:bg-slate-100 dark:border-white/15 dark:bg-[#17171F] dark:text-white dark:hover:bg-white/5 text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap shrink-0"
-              >
-                <Twitter className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>Compartilhar no X</span>
-              </a>
-            )}
           </div>
         </div>
       </section>
