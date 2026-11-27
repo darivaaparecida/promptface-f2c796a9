@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Download, History, Images, MoveHorizontal, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -52,7 +52,8 @@ export function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
-  const [imageReady, setImageReady] = useState(false);
+  const [loadedUrl, setLoadedUrl] = useState<string>('');
+  const previewRef = useRef<HTMLDivElement>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [photosSheetOpen, setPhotosSheetOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -93,14 +94,23 @@ export function StudioPage() {
   );
 
   const currentDisplayUrl = activeVersionUrl || selectedGen?.url || '';
+  const resolvedDisplayUrl = currentDisplayUrl ? getMediaUrl(currentDisplayUrl) : '';
   const canCompare = Boolean(selectedGen && currentDisplayUrl !== selectedGen.url);
+  const imageReady = Boolean(resolvedDisplayUrl && loadedUrl === resolvedDisplayUrl);
 
   useEffect(() => {
-    setImageReady(false);
     if (!canCompare) {
       setCompareMode(false);
     }
-  }, [currentDisplayUrl, canCompare]);
+  }, [canCompare]);
+
+  useEffect(() => {
+    if (!resolvedDisplayUrl) return;
+    const img = previewRef.current?.querySelector('img');
+    if (img && img.complete && img.naturalWidth > 0) {
+      setLoadedUrl(resolvedDisplayUrl);
+    }
+  }, [resolvedDisplayUrl, compareMode, editing]);
 
   // Mesmo comportamento do antigo <select>: trocar a foto ativa e mostrar
   // a versão mais recente dela.
@@ -354,18 +364,20 @@ export function StudioPage() {
                 objectPositionClass="object-cover object-center"
               />
             ) : (
-              <div className="relative min-h-[320px]">
+              <div ref={previewRef} className="relative min-h-[320px]">
                 <ImageWithFallback
-                  src={getMediaUrl(displayUrl)}
+                  src={resolvedDisplayUrl}
                   alt={selectedGen?.scenarioTitle || 'Edição no Studio'}
-                  onLoad={() => setImageReady(true)}
-                  onError={() => setImageReady(true)}
-                  className="w-full h-auto object-cover"
+                  onLoad={() => setLoadedUrl(resolvedDisplayUrl)}
+                  onError={() => setLoadedUrl(resolvedDisplayUrl)}
+                  className={`w-full h-auto object-cover transition-opacity duration-300 ${
+                    imageReady || !resolvedDisplayUrl ? 'opacity-100' : 'opacity-0'
+                  }`}
                 />
-                {!imageReady && (
+                {!imageReady && resolvedDisplayUrl && (
                   <div
                     aria-hidden="true"
-                    className="absolute inset-0 skeleton-violet"
+                    className="absolute inset-0 skeleton-violet pointer-events-none"
                   />
                 )}
                 {imageReady && (

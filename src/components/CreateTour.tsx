@@ -1,58 +1,90 @@
 import { useEffect, useState } from 'react';
-import { Camera, LayoutGrid, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Check, HelpCircle, LayoutGrid, Sparkles, X } from 'lucide-react';
 
-const TOUR_SEEN_KEY = 'promptface_create_tour_seen';
+export const CREATE_TOUR_SEEN_KEY = 'promptface_create_tour_seen';
 
 interface TourStep {
   icon: typeof Camera;
+  shortLabel: string;
   title: string;
   text: string;
+  tip: string;
   target: string;
+  desktopSide: 'left' | 'right';
 }
 
 const STEPS: TourStep[] = [
   {
     icon: Camera,
-    title: '1. Envie seu rosto',
-    text: 'Tudo começa no Perfil Visual: envie 1 foto bem iluminada do seu rosto. É ela que a IA usa como referência em todas as fotos.',
+    shortLabel: 'Rosto',
+    title: '1. Envie seu rosto no Perfil Visual',
+    text: 'Tudo começa enviando 1 foto nítida e bem iluminada do seu rosto. É ela que a IA usa como referência para manter sua identidade.',
+    tip: 'Você também pode escolher o modelo de IA preferido clicando em Gerenciar Perfil Visual.',
     target: '[data-tour="upload"]',
+    desktopSide: 'right',
   },
   {
     icon: LayoutGrid,
-    title: '2. Escolha o cenário',
-    text: 'São 84 cenários em 14 categorias — ou descreva a cena que você quiser no modo livre e personalize os detalhes.',
+    shortLabel: 'Cenário',
+    title: '2. Escolha o cenário ou descreva livre',
+    text: 'Explore 84 cenários prontos em 14 categorias ou mude para Criação Livre para escrever qualquer cena do zero.',
+    tip: 'Nos campos de texto (Roupa, Ambiente e Pose), use "Ampliar campo" sempre que quiser mais espaço para digitar.',
     target: '[data-tour="scenario"]',
+    desktopSide: 'right',
   },
   {
     icon: Sparkles,
-    title: '3. Gere sua foto',
-    text: 'Confira o custo em créditos e toque em Confirmar e gerar foto. Cada foto custa 10 créditos (20 com o Nano Banana Pro).',
+    shortLabel: 'Gerar',
+    title: '3. Confira o resumo e gere sua foto',
+    text: 'Veja formato, modelo e custo exato em créditos no painel à direita e clique em Confirmar e gerar foto.',
+    tip: 'Cada foto custa 10 créditos (20 no Nano Banana Pro). Se houver qualquer falha, o estorno é automático.',
     target: '[data-tour="generate"]',
+    desktopSide: 'left',
   },
 ];
 
+interface CreateTourProps {
+  open?: boolean;
+  onOpenChange?: (nextOpen: boolean) => void;
+}
+
 /**
- * Tour inicial da página de criação: aparece só na primeira visita e
- * destaca os 3 passos principais (foto, cenário, gerar). Sem biblioteca
- * externa — o destaque é um anel violeta no elemento do passo atual.
+ * Guia interativo não-bloqueante da página de criação:
+ * não escurece nem tampa a área em destaque — no desktop ancora no canto
+ * oposto ao elemento destacado, e no mobile aparece em linha sem sobrepor
+ * botões ou campos.
  */
-export function CreateTour() {
-  const [open, setOpen] = useState(false);
+export function CreateTour({ open: controlledOpen, onOpenChange }: CreateTourProps = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [step, setStep] = useState(0);
 
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
   useEffect(() => {
+    if (isControlled) return;
     try {
-      if (!window.localStorage.getItem(TOUR_SEEN_KEY)) setOpen(true);
+      if (!window.localStorage.getItem(CREATE_TOUR_SEEN_KEY)) {
+        setInternalOpen(true);
+      }
     } catch {
-      // Sem localStorage, o tour simplesmente não aparece.
+      // Sem localStorage, o tour simplesmente não abre automático.
     }
-  }, []);
+  }, [isControlled]);
+
+  useEffect(() => {
+    if (open) {
+      setStep(0);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const target = document.querySelector(STEPS[step].target);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target?.classList.add('pf-tour-highlight');
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('pf-tour-highlight');
+    }
     return () => {
       target?.classList.remove('pf-tour-highlight');
     };
@@ -60,83 +92,138 @@ export function CreateTour() {
 
   const dismiss = () => {
     try {
-      window.localStorage.setItem(TOUR_SEEN_KEY, '1');
+      window.localStorage.setItem(CREATE_TOUR_SEEN_KEY, '1');
     } catch {
-      // Sem localStorage, o tour pode reaparecer — sem problema.
+      // Sem localStorage, apenas fecha na sessão atual.
     }
-    setOpen(false);
+    if (isControlled) {
+      onOpenChange?.(false);
+    } else {
+      setInternalOpen(false);
+    }
   };
 
   if (!open) return null;
 
   const current = STEPS[step];
   const Icon = current.icon;
+  const isFirst = step === 0;
   const isLast = step === STEPS.length - 1;
 
+  const desktopDockClass =
+    current.desktopSide === 'left'
+      ? 'lg:left-6 lg:right-auto'
+      : 'lg:right-6 lg:left-auto';
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+    <aside
       role="dialog"
-      aria-modal="true"
-      aria-label="Tour inicial da criação"
+      aria-modal="false"
+      aria-label={`Guia rápido de criação: passo ${step + 1} de ${STEPS.length}`}
+      data-testid="create-onboarding-tour"
+      className={`relative lg:fixed lg:bottom-6 ${desktopDockClass} lg:z-40 lg:w-[390px] rounded-2xl border border-violet-600/50 bg-white dark:border-[#8B5CF6]/60 dark:bg-[#17171F] p-5 shadow-xl shadow-slate-900/12 dark:shadow-black/60 space-y-4 transition-all`}
     >
-      <button
-        type="button"
-        aria-label="Fechar tour"
-        onClick={dismiss}
-        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-      />
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-6 shadow-2xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-white">
+            <Icon className="w-5 h-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-violet-700 dark:text-[#A855F7] font-mono-num">
+              <HelpCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                Passo {step + 1} de {STEPS.length}
+              </span>
+            </p>
+            <h2 className="font-display text-sm sm:text-base font-bold text-slate-950 dark:text-white leading-snug">
+              {current.title}
+            </h2>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Pular tour"
-          className="absolute top-4 right-4 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:bg-white/5"
+          aria-label="Fechar guia"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-[#A1A1AA] dark:hover:bg-white/5 dark:hover:text-white transition-colors"
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
+      </div>
 
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-white">
-          <Icon className="w-5 h-5" aria-hidden="true" />
-        </span>
-        <h2 className="mt-4 font-display text-lg font-semibold text-slate-950 dark:text-white">
-          {current.title}
-        </h2>
-        <p className="mt-1.5 text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
-          {current.text}
-        </p>
+      <p className="text-xs sm:text-sm text-slate-700 dark:text-white/90 leading-relaxed">
+        {current.text}
+      </p>
 
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5" aria-label={`Passo ${step + 1} de ${STEPS.length}`}>
-            {STEPS.map((item, index) => (
-              <span
+      <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 dark:text-[#A1A1AA] dark:bg-[#0D0D14] dark:border-white/10 rounded-xl px-3.5 py-2.5 leading-relaxed">
+        <strong className="font-semibold text-slate-900 dark:text-white">Dica:</strong>{' '}
+        {current.tip}
+      </p>
+
+      {/* Step selector tabs + navigation */}
+      <div className="pt-1 space-y-3">
+        <div className="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Etapas do guia">
+          {STEPS.map((item, index) => {
+            const active = index === step;
+            return (
+              <button
                 key={item.title}
-                className={`h-1.5 rounded-full transition-all ${
-                  index === step
-                    ? 'w-6 bg-gradient-to-r from-[#A855F7] to-[#EC4899]'
-                    : 'w-1.5 bg-slate-300 dark:bg-white/20'
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setStep(index)}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors truncate ${
+                  active
+                    ? 'bg-violet-100 text-violet-900 font-semibold dark:bg-[#7C3AED]/25 dark:text-white'
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-950 dark:bg-white/5 dark:text-[#A1A1AA] dark:hover:text-white'
                 }`}
-              />
-            ))}
-          </div>
+              >
+                {index + 1}. {item.shortLabel}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={dismiss}
+            className="px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5 transition-colors"
+          >
+            Pular
+          </button>
+
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={dismiss}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-slate-700 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:bg-white/5"
-            >
-              Pular
-            </button>
+            {!isFirst && (
+              <button
+                type="button"
+                onClick={() => setStep(step - 1)}
+                className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 hover:border-violet-600 dark:border-white/15 dark:bg-[#0D0D14] dark:text-white dark:hover:border-[#8B5CF6] transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Anterior</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => (isLast ? dismiss() : setStep(step + 1))}
-              className="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all"
             >
-              {isLast ? 'Entendi' : 'Próximo'}
+              {isLast ? (
+                <>
+                  <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Entendi</span>
+                </>
+              ) : (
+                <>
+                  <span>Próximo</span>
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

@@ -10,6 +10,7 @@ import {
   Download,
   Gift,
   Heart,
+  HelpCircle,
   LayoutGrid,
   PenLine,
   RefreshCw,
@@ -43,7 +44,7 @@ import { buildScenarioInviteLink, saveInviteCode } from '../shared/invites';
 import { useToast } from '../context/ToastContext';
 import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
 import { ButtonSpinner } from '../components/ButtonSpinner';
-import { CreateTour } from '../components/CreateTour';
+import { CREATE_TOUR_SEEN_KEY, CreateTour } from '../components/CreateTour';
 import { ExpandableTextField } from '../components/ExpandableTextField';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ProfileAvatar } from '../components/ProfileAvatar';
@@ -103,6 +104,13 @@ export function CreatePage() {
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId);
   const [scenarioPickerOpen, setScenarioPickerOpen] = useState(false);
   const [scenarioPickerQuery, setScenarioPickerQuery] = useState('');
+  const [tourOpen, setTourOpen] = useState<boolean>(() => {
+    try {
+      return !window.localStorage.getItem(CREATE_TOUR_SEEN_KEY);
+    } catch {
+      return false;
+    }
+  });
 
   // Visual profile pre-check
   const [faces, setFaces] = useState<FaceSummary[]>([]);
@@ -556,7 +564,6 @@ export function CreatePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 pb-24 sm:pb-24 lg:pb-12 space-y-6 sm:space-y-8">
-      <CreateTour />
       {/* Studio Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-200 dark:border-white/10">
         <div>
@@ -571,13 +578,31 @@ export function CreatePage() {
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-3 self-start md:self-auto rounded-xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] px-4 py-2.5 shadow-sm dark:shadow-none">
-          <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">Seu saldo</span>
-          <span className="text-sm font-bold text-slate-950 dark:text-white font-mono-num">
-            {user?.credits ?? 0} créditos
-          </span>
+        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setTourOpen((prev) => !prev)}
+            aria-expanded={tourOpen}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+              tourOpen
+                ? 'border-violet-600 bg-violet-50 text-violet-900 dark:border-[#8B5CF6] dark:bg-[#7C3AED]/20 dark:text-white'
+                : 'border-slate-300 bg-white text-slate-700 hover:border-violet-600 hover:text-slate-950 dark:border-white/10 dark:bg-[#17171F] dark:text-[#A1A1AA] dark:hover:border-[#8B5CF6] dark:hover:text-white'
+            }`}
+          >
+            <HelpCircle className="w-4 h-4 text-violet-700 dark:text-[#A855F7]" aria-hidden="true" />
+            <span>Como usar</span>
+          </button>
+
+          <div className="inline-flex items-center gap-3 rounded-xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] px-4 py-2.5 shadow-sm dark:shadow-none">
+            <span className="text-xs text-slate-600 dark:text-[#A1A1AA]">Seu saldo</span>
+            <span className="text-sm font-bold text-slate-950 dark:text-white font-mono-num">
+              {user?.credits ?? 0} créditos
+            </span>
+          </div>
         </div>
       </div>
+
+      <CreateTour open={tourOpen} onOpenChange={setTourOpen} />
 
       {/* MANDATORY FLOW RULE: Visual Profile state shown AT THE TOP BEFORE generate button */}
       {!loadingProfile && !hasFaces ? (
@@ -611,7 +636,10 @@ export function CreatePage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-[#17171F] px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-sm dark:shadow-none">
+        <div
+          data-tour="upload"
+          className="rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-[#17171F] px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-sm dark:shadow-none"
+        >
           <div className="flex items-center gap-3.5">
             <ProfileAvatar
               faces={faces}
@@ -805,6 +833,7 @@ export function CreatePage() {
           <div className="lg:col-span-7 space-y-6">
             {/* Step 1: Scenario or Free Prompt */}
             <section
+              data-tour="scenario"
               aria-labelledby="step-1-heading"
               className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 space-y-5 shadow-sm dark:shadow-none"
             >
@@ -884,7 +913,6 @@ export function CreatePage() {
 
                   <button
                     type="button"
-                    data-tour="scenario"
                     onClick={() => setScenarioPickerOpen(true)}
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 bg-white hover:bg-violet-50 dark:border-[#7C3AED] dark:bg-transparent dark:text-white dark:hover:bg-[#7C3AED]/15 transition-colors"
                   >
