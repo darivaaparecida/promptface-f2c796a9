@@ -44,7 +44,7 @@ test('calculateMonthlyCreditNeeds recommends pro between 81 and 200 credits', ()
   assert.equal(summary.exceedsPremiumLimit, false);
 });
 
-test('calculateMonthlyCreditNeeds recommends premium above 200 credits and flags >600', () => {
+test('calculateMonthlyCreditNeeds recommends premium above 400 credits and flags >800', () => {
   const premiumFit = calculateMonthlyCreditNeeds({
     photosPerMonth: 35,
     studioActionsPerMonth: 15,
@@ -55,11 +55,11 @@ test('calculateMonthlyCreditNeeds recommends premium above 200 credits and flags
   assert.equal(premiumFit.exceedsPremiumLimit, false);
 
   const highUsage = calculateMonthlyCreditNeeds({
-    photosPerMonth: 65,
+    photosPerMonth: 85,
     studioActionsPerMonth: 0,
     promptEnhancementsPerMonth: 0,
   });
-  assert.equal(highUsage.totalCredits, 650);
+  assert.equal(highUsage.totalCredits, 850);
   assert.equal(highUsage.recommendedPlanId, 'premium');
   assert.equal(highUsage.exceedsPremiumLimit, true);
 });
@@ -92,14 +92,14 @@ test('getPlanUnitMetrics computes cost per photo and savings vs PRO', () => {
 
   const proMetrics = getPlanUnitMetrics(pro, pro);
   assert.equal(proMetrics.savingsVsBasePercent, 0);
-  assert.ok(proMetrics.pricePerPhotoFormatted.includes('2,50'));
+  assert.ok(proMetrics.pricePerPhotoFormatted.includes('1,25'));
 
   const premiumMetrics = getPlanUnitMetrics(premium, pro);
-  assert.equal(premiumMetrics.savingsVsBasePercent, 33);
-  assert.ok(premiumMetrics.pricePerPhotoFormatted.includes('1,67'));
+  assert.equal(premiumMetrics.savingsVsBasePercent, 0);
+  assert.ok(premiumMetrics.pricePerPhotoFormatted.includes('1,25'));
 
   const premiumYearlyMetrics = getPlanUnitMetrics(premium, pro, 'yearly');
-  assert.ok(premiumYearlyMetrics.pricePerPhotoFormatted.includes('1,11'));
+  assert.ok(premiumYearlyMetrics.pricePerPhotoFormatted.includes('0,83'));
 });
 
 test('getPlanSavingsBadgeInfo returns null on monthly and highlights exact BRL savings on quarterly and yearly', () => {

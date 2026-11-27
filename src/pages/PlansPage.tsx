@@ -117,13 +117,6 @@ export function PlansPage() {
       premium: `Até ${premiumPlan.maxPhotosMonthly} fotos / mês`,
     },
     {
-      label: 'Custo efetivo por foto',
-      freeTrial: 'Grátis no cadastro',
-      essencial: `${essencialCycle.pricePerPhotoFormatted} por foto`,
-      pro: `${proCycle.pricePerPhotoFormatted} por foto`,
-      premium: `${premiumCycle.pricePerPhotoFormatted} por foto`,
-    },
-    {
       label: 'Bônus no 1º mês (Trimestral / Anual)',
       freeTrial: 'Não aplicável',
       essencial:
@@ -452,8 +445,6 @@ export function PlansPage() {
                     {cyclePricing.bonusCreditsFirstMonth > 0
                       ? ` (+${cyclePricing.bonusCreditsFirstMonth} bônus no 1º mês)`
                       : ''}
-                    {' · '}
-                    {metrics.pricePerPhotoFormatted} por foto
                     {metrics.savingsVsBasePercent > 0
                       ? ` · ${metrics.savingsVsBasePercent}% mais econômico`
                       : ''}
@@ -642,7 +633,7 @@ export function PlansPage() {
                     : usageSummary.recommendedPlanId === 'free_trial'
                     ? 'Os 20 créditos gratuitos do cadastro já cobrem esse teste inicial sem custo.'
                     : recommendedPlanObj && recommendedCyclePricing
-                    ? `O plano ${recommendedPlanObj.name} entrega ${recommendedPlanObj.creditsMonthly} créditos mensais por ${recommendedCyclePricing.monthlyEquivalentFormatted}/mês no ciclo ${recommendedCyclePricing.intervalLabel} (${recommendedCyclePricing.pricePerPhotoFormatted} por foto).`
+                    ? `O plano ${recommendedPlanObj.name} entrega ${recommendedPlanObj.creditsMonthly} créditos mensais por ${recommendedCyclePricing.monthlyEquivalentFormatted}/mês no ciclo ${recommendedCyclePricing.intervalLabel}.`
                     : ''}
                 </p>
               </div>
