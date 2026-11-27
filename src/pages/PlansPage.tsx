@@ -111,7 +111,7 @@ export function PlansPage() {
     },
     {
       label: 'Volume máximo de fotos',
-      freeTrial: '2 fotos grátis',
+      freeTrial: '1 foto grátis',
       essencial: `Até ${essencialPlan.maxPhotosMonthly} fotos / mês`,
       pro: `Até ${proPlan.maxPhotosMonthly} fotos / mês`,
       premium: `Até ${premiumPlan.maxPhotosMonthly} fotos / mês`,
@@ -281,7 +281,7 @@ export function PlansPage() {
               Escolha o plano e o ciclo ideal para as suas fotografias
             </h1>
             <p className="text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
-              Comece com {INITIAL_SIGNUP_CREDITS} créditos grátis (2 fotos gratuitas) ao criar sua conta. Depois, economize até 33% nos planos Trimestral e Anual com liberação mensal de créditos e bônus no 1º mês.
+              Comece com {INITIAL_SIGNUP_CREDITS} créditos grátis (1 foto gratuita) ao criar sua conta. Depois, economize até 33% nos planos Trimestral e Anual com liberação mensal de créditos e bônus no 1º mês.
             </p>
           </div>
 
@@ -477,7 +477,7 @@ export function PlansPage() {
                           : 'border border-violet-700 text-violet-950 hover:bg-violet-100 dark:border-[#7C3AED] dark:text-white dark:hover:bg-[#7C3AED]/15'
                       }`}
                     >
-                      Começar com 2 fotos grátis
+                      Começar com 1 foto grátis
                     </Link>
                   ) : isCurrentPlan ? (
                     <Link
@@ -513,7 +513,7 @@ export function PlansPage() {
           })}
         </section>
 
-        {/* Teste Inicial Grátis (20 créditos no cadastro) */}
+        {/* Teste Inicial Grátis (10 créditos no cadastro) */}
         <section
           aria-label="Teste Inicial Grátis"
           className="rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface p-6 sm:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6"
@@ -524,7 +524,7 @@ export function PlansPage() {
                 Teste Inicial Grátis · R$ 0 no cadastro
               </h2>
               <span className="text-xs font-medium text-violet-700 dark:text-[#A855F7] font-mono-num">
-                {INITIAL_SIGNUP_CREDITS} créditos grátis · 2 fotos completas · Sem cartão
+                {INITIAL_SIGNUP_CREDITS} créditos grátis · 1 foto completa · Sem cartão
               </span>
             </div>
             <p className="text-sm text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
@@ -631,7 +631,7 @@ export function PlansPage() {
                   {usageSummary.exceedsPremiumLimit
                     ? 'Seu volume supera os 800 créditos do ciclo Premium mensal. Para uso contínuo acima disso, recomenda-se iniciar pelo Premium e acompanhar o saldo em Meu Espaço.'
                     : usageSummary.recommendedPlanId === 'free_trial'
-                    ? 'Os 20 créditos gratuitos do cadastro já cobrem esse teste inicial sem custo.'
+                    ? 'Os 10 créditos gratuitos do cadastro já cobrem esse teste inicial sem custo.'
                     : recommendedPlanObj && recommendedCyclePricing
                     ? `O plano ${recommendedPlanObj.name} entrega ${recommendedPlanObj.creditsMonthly} créditos mensais por ${recommendedCyclePricing.monthlyEquivalentFormatted}/mês no ciclo ${recommendedCyclePricing.intervalLabel}.`
                     : ''}

@@ -7,7 +7,7 @@ export const CREDIT_COSTS = {
   enhance_prompt: 1,
 } as const;
 
-export const INITIAL_SIGNUP_CREDITS = 20;
+export const INITIAL_SIGNUP_CREDITS = 10;
 
 export type CreditOperation = keyof typeof CREDIT_COSTS;
 

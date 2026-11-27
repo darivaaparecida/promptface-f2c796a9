@@ -72,6 +72,7 @@ export function formatAiModelLabel(model?: string, provider?: string): string {
   if (normalized === 'gemini-3.1-flash-lite-image') return 'Gemini 3.1 Flash Lite Image';
   if (normalized === 'gemini-2.5-flash-image') return 'Gemini 2.5 Flash Image';
   if (normalized === 'gemini-nano-banana-2.1') return 'Gemini Nano Banana 2.1';
+  if (normalized.includes('flux-pro/kontext/max')) return 'FLUX.1 Kontext Max';
   if (normalized.includes('flux-pro/kontext')) return 'FLUX Pro Kontext';
   if (normalized.includes('flux')) return 'FLUX Kontext';
   return raw;

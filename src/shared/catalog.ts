@@ -1196,7 +1196,7 @@ export const INITIAL_PLANS: PlanDefinition[] = [
 export const FAQ_ITEMS = [
   {
     q: 'Como funcionam as fotos grátis do cadastro?',
-    a: 'Ao criar sua conta no PromptFace, você recebe automaticamente 20 créditos grátis, o equivalente exato a 2 fotografias geradas (10 créditos por geração). Não há plano gratuito recorrente além desses 20 créditos iniciais.',
+    a: 'Ao criar sua conta no PromptFace, você recebe automaticamente 10 créditos grátis, o equivalente exato a 1 fotografia gerada (10 créditos por geração). Não há plano gratuito recorrente além desses 10 créditos iniciais.',
   },
   {
     q: 'Como funcionam os planos Trimestral e Anual?',

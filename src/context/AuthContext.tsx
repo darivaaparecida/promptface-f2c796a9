@@ -5,8 +5,8 @@
 // o Supabase Auth; role/créditos/plano vêm da linha de public.users ligada
 // ao usuário (auth_user_id). A confirmação de e-mail é por LINK do próprio
 // Supabase Auth — não existe mais o fluxo de código de 6 dígitos (Resend).
-// Login com Google continua desativado. Os 20 créditos grátis do cadastro
-// vêm de trigger no banco (migração 5), nunca de valor fixado no cliente.
+// Login com Google continua desativado. Os 10 créditos grátis do cadastro
+// vêm de trigger no banco (migração 6), nunca de valor fixado no cliente.
 // ---------------------------------------------------------------------------
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { PreferredAiModelId } from '../shared/aiModels';
