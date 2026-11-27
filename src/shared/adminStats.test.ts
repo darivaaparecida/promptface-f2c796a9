@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_MAINTENANCE_CONFIG,
   buildAdminDailyStats,
+  buildAdminHealthMetrics,
   normalizeMaintenanceConfig,
 } from './adminStats';
 
@@ -89,4 +90,82 @@ test('buildAdminDailyStats handles empty datasets and invalid dates cleanly', ()
   assert.equal(summary.newUsersInWindow, 0);
   assert.equal(summary.totalUsersAtEnd, 0);
   assert.equal(summary.peakGenerationsDay, null);
+});
+
+test('buildAdminHealthMetrics computes credit usage and churn signals', () => {
+  const ref = new Date('2026-11-27T12:00:00.000Z');
+  const metrics = buildAdminHealthMetrics({
+    users: [
+      {
+        id: 'u1',
+        name: 'Assinante Ativo',
+        email: 'ativo@exemplo.com',
+        planId: 'pro',
+        subscriptionStatus: 'active',
+        credits: 700,
+        createdAt: '2026-11-01T10:00:00.000Z',
+      },
+      {
+        id: 'u2',
+        name: 'Assinante Parado',
+        email: 'parado@exemplo.com',
+        planId: 'premium',
+        subscriptionStatus: 'active',
+        credits: 1600,
+        createdAt: '2026-10-01T10:00:00.000Z',
+      },
+      {
+        id: 'u3',
+        name: 'Teste Frio',
+        email: 'frio@exemplo.com',
+        planId: 'free_trial',
+        subscriptionStatus: 'inactive',
+        credits: 10,
+        createdAt: '2026-11-10T10:00:00.000Z',
+      },
+      {
+        id: 'u4',
+        name: 'Teste Convertido',
+        email: 'convertido@exemplo.com',
+        planId: 'free_trial',
+        subscriptionStatus: 'inactive',
+        credits: 0,
+        createdAt: '2026-11-20T10:00:00.000Z',
+      },
+      {
+        id: 'u5',
+        name: 'Cancelado',
+        email: 'cancelado@exemplo.com',
+        planId: 'pro',
+        subscriptionStatus: 'canceled',
+        credits: 0,
+        createdAt: '2026-10-15T10:00:00.000Z',
+      },
+    ],
+    generations: [
+      { userId: 'u1', costCredits: 10, createdAt: '2026-11-27T08:00:00.000Z' },
+      { userId: 'u1', costCredits: 10, createdAt: '2026-11-26T08:00:00.000Z' },
+      { userId: 'u1', costCredits: 10, createdAt: '2026-10-05T08:00:00.000Z' },
+      { userId: 'u4', costCredits: 10, createdAt: '2026-11-21T08:00:00.000Z' },
+    ],
+    monthlyQuotaByPlan: { free_trial: 10, essencial: 300, pro: 800, premium: 1600 },
+    referenceDate: ref,
+  });
+
+  assert.equal(metrics.creditsInCirculation, 2310);
+  assert.equal(metrics.creditsUsedThisMonth, 30);
+  assert.equal(metrics.totalMonthlyQuota, 3220);
+  assert.equal(metrics.usageRateThisMonthPct, 1);
+  assert.equal(metrics.activeSubscribers, 2);
+  assert.equal(metrics.subscribersWithoutGenerations, 1);
+  assert.equal(metrics.trialTotal, 2);
+  assert.equal(metrics.trialWithGeneration, 1);
+  assert.equal(metrics.trialConversionPct, 50);
+  assert.equal(metrics.churnSignals.length, 3);
+  assert.equal(metrics.churnSignals[0].email, 'cancelado@exemplo.com');
+  assert.equal(metrics.churnSignals[0].level, 'high');
+  assert.equal(metrics.churnSignals[1].email, 'parado@exemplo.com');
+  assert.equal(metrics.churnSignals[1].reason, 'Assinante sem nenhuma geração registrada');
+  assert.equal(metrics.churnSignals[2].email, 'frio@exemplo.com');
+  assert.equal(metrics.churnSignals[2].reason, 'Teste grátis sem uso');
 });

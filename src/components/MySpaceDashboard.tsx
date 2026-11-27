@@ -8,6 +8,7 @@ import {
   Cell,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -340,6 +341,101 @@ export function MySpaceDashboard({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Estatísticas de Uso — consumo de créditos por mês (recorrente) */}
+      <div className="rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+          <div>
+            <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+              Estatísticas de Uso
+            </h2>
+            <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
+              Créditos consumidos por mês — limite mensal do seu plano
+            </p>
+          </div>
+          <span className="text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+            Neste mês:{' '}
+            <strong className="text-slate-950 dark:text-white">
+              {creditsOverview.usedCreditsThisMonth} de {creditsOverview.monthlyQuotaCredits} créditos
+              {creditsOverview.monthlyQuotaCredits > 0
+                ? ` (${Math.round(
+                    (creditsOverview.usedCreditsThisMonth /
+                      creditsOverview.monthlyQuotaCredits) *
+                      100
+                  )}%)`
+                : ''}
+            </strong>
+          </span>
+        </div>
+
+        <div className="h-52 w-full" data-testid="monthly-credits-chart">
+          {summary.totalGenerations === 0 ? (
+            <div className="h-full rounded-xl border border-dashed border-slate-300 bg-slate-100/80 dark:border-white/10 dark:bg-[#08080C]/60 flex flex-col items-center justify-center text-center px-4 gap-3">
+              <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
+                Ainda não há consumo registrado nos últimos 6 meses.
+              </p>
+              <Link
+                to="/criar"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110"
+              >
+                Gerar primeira foto
+              </Link>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={summary.monthlySeries}
+                margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  stroke={gridStroke}
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: tickColor, fontSize: 11 }}
+                  axisLine={{ stroke: axisStroke }}
+                  tickLine={false}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fill: tickColor, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }}
+                  content={<MonthlyTooltip />}
+                />
+                <ReferenceLine
+                  y={creditsOverview.monthlyQuotaCredits}
+                  stroke={isDark ? '#F59E0B' : '#D97706'}
+                  strokeDasharray="6 4"
+                  label={{
+                    value: `Limite mensal: ${creditsOverview.monthlyQuotaCredits} cr`,
+                    position: 'insideTopRight',
+                    fill: isDark ? '#FBBF24' : '#B45309',
+                    fontSize: 11,
+                  }}
+                />
+                <Bar
+                  dataKey="creditsSpent"
+                  name="Créditos consumidos"
+                  fill={barFill}
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        <p className="mt-3 text-xs text-slate-500 dark:text-[#A1A1AA]">
+          Cada barra é um mês. A linha tracejada é o limite mensal do seu plano (
+          {creditsOverview.monthlyQuotaCredits} créditos) — se uma barra passar dela,
+          você usou mais do que a cota do mês.
+        </p>
       </div>
 
       {/* Gerações recentes */}

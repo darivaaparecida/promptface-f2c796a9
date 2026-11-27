@@ -56,8 +56,8 @@ export function CreditIndicator({ compact = false }: CreditIndicatorProps) {
       }
       className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6] ${
         lowCredits
-          ? 'border-amber-500/60 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'
-          : 'border-slate-300 bg-slate-100 text-slate-950 hover:bg-slate-200 dark:border-white/15 dark:bg-[#17171F] dark:text-white dark:hover:border-[#8B5CF6]'
+          ? 'border-amber-500/60 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 dark:hover:bg-amber-500/25'
+          : 'border-violet-300/70 bg-violet-100 text-violet-800 hover:bg-violet-200 dark:border-violet-400/30 dark:bg-violet-500/15 dark:text-violet-100 dark:hover:border-[#8B5CF6] dark:hover:bg-violet-500/25'
       } ${justChanged ? 'animate-pulse ring-2 ring-violet-500/60' : ''}`}
     >
       {lowCredits ? (

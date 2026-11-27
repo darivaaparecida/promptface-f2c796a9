@@ -18,6 +18,7 @@ import { DEFAULT_MAINTENANCE_CONFIG } from '../shared/adminStats';
 import { DEFAULT_FAL_FREE_LIMIT } from '../shared/providerQuota';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { AdminStatsSection } from '../components/AdminStatsSection';
+import { AdminHealthPanel } from '../components/AdminHealthPanel';
 
 type AdminTab =
   | 'metricas'
@@ -349,6 +350,12 @@ export function AdminPage() {
               </div>
             ))}
           </div>
+
+          <AdminHealthPanel
+            users={data.users}
+            generations={data.generations}
+            plans={data.plans}
+          />
 
           <AdminStatsSection
             dailyStats30d={data.dailyStats30d}

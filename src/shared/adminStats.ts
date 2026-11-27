@@ -161,3 +161,204 @@ export function buildAdminDailyStats(params: {
       safeDays > 0 ? Number((totalGenerationsInWindow / safeDays).toFixed(1)) : 0,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Saúde da assinatura — uso de créditos e sinais de churn (painel Admin).
+// Entradas mínimas para não acoplar ao formato completo do banco.
+// "Última geração" é calculada a partir das gerações carregadas pelo
+// painel (as 50 mais recentes); com a base atual, isso cobre todo mundo.
+// ---------------------------------------------------------------------------
+
+export interface AdminHealthUserInput {
+  id: string;
+  name: string;
+  email: string;
+  planId: string;
+  subscriptionStatus: string;
+  credits: number;
+  createdAt: string;
+}
+
+export interface AdminHealthGenerationInput {
+  userId: string;
+  costCredits: number;
+  createdAt: string;
+}
+
+export type ChurnSignalLevel = 'high' | 'medium';
+
+export interface ChurnSignal {
+  userId: string;
+  name: string;
+  email: string;
+  planId: string;
+  level: ChurnSignalLevel;
+  reason: string;
+  daysSince: number | null;
+}
+
+export interface AdminHealthMetrics {
+  creditsInCirculation: number;
+  creditsUsedThisMonth: number;
+  totalMonthlyQuota: number;
+  usageRateThisMonthPct: number;
+  activeSubscribers: number;
+  subscribersWithoutGenerations: number;
+  trialTotal: number;
+  trialWithGeneration: number;
+  trialConversionPct: number;
+  churnSignals: ChurnSignal[];
+}
+
+function daysBetween(from: Date, to: Date): number {
+  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86_400_000));
+}
+
+export function buildAdminHealthMetrics(params: {
+  users: AdminHealthUserInput[];
+  generations: AdminHealthGenerationInput[];
+  monthlyQuotaByPlan: Record<string, number>;
+  referenceDate?: Date;
+}): AdminHealthMetrics {
+  const ref = params.referenceDate ? new Date(params.referenceDate.getTime()) : new Date();
+  const monthKey = `${ref.getUTCFullYear()}-${ref.getUTCMonth()}`;
+
+  const lastGenerationByUser = new Map<string, number>();
+  let creditsUsedThisMonth = 0;
+  for (const gen of params.generations) {
+    const parsed = new Date(gen.createdAt);
+    if (Number.isNaN(parsed.getTime())) continue;
+    const prev = lastGenerationByUser.get(gen.userId);
+    if (prev === undefined || parsed.getTime() > prev) {
+      lastGenerationByUser.set(gen.userId, parsed.getTime());
+    }
+    if (`${parsed.getUTCFullYear()}-${parsed.getUTCMonth()}` === monthKey) {
+      creditsUsedThisMonth += gen.costCredits || 0;
+    }
+  }
+
+  const creditsInCirculation = params.users.reduce((sum, u) => sum + (u.credits || 0), 0);
+  const totalMonthlyQuota = params.users.reduce(
+    (sum, u) => sum + (params.monthlyQuotaByPlan[u.planId] ?? 0),
+    0
+  );
+  const usageRateThisMonthPct =
+    totalMonthlyQuota > 0
+      ? Math.round((creditsUsedThisMonth / totalMonthlyQuota) * 100)
+      : 0;
+
+  const activePaid = params.users.filter(
+    (u) => u.subscriptionStatus === 'active' && u.planId !== 'free_trial'
+  );
+  const subscribersWithoutGenerations = activePaid.filter(
+    (u) => !lastGenerationByUser.has(u.id)
+  ).length;
+
+  const trialUsers = params.users.filter((u) => u.planId === 'free_trial');
+  const trialWithGeneration = trialUsers.filter((u) => lastGenerationByUser.has(u.id)).length;
+  const trialConversionPct =
+    trialUsers.length > 0 ? Math.round((trialWithGeneration / trialUsers.length) * 100) : 0;
+
+  const signals: ChurnSignal[] = [];
+  for (const user of params.users) {
+    const created = new Date(user.createdAt);
+    const ageDays = Number.isNaN(created.getTime()) ? null : daysBetween(created, ref);
+    const lastGen = lastGenerationByUser.get(user.id);
+    const daysSinceLastGen =
+      lastGen === undefined ? null : daysBetween(new Date(lastGen), ref);
+
+    if (user.subscriptionStatus === 'canceled') {
+      signals.push({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        planId: user.planId,
+        level: 'high',
+        reason: 'Assinatura cancelada',
+        daysSince: null,
+      });
+      continue;
+    }
+    if (user.subscriptionStatus === 'past_due') {
+      signals.push({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        planId: user.planId,
+        level: 'high',
+        reason: 'Pagamento em atraso',
+        daysSince: null,
+      });
+      continue;
+    }
+    if (user.subscriptionStatus === 'active' && user.planId !== 'free_trial') {
+      if (lastGen === undefined) {
+        signals.push({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          planId: user.planId,
+          level: 'high',
+          reason: 'Assinante sem nenhuma geração registrada',
+          daysSince: ageDays,
+        });
+      } else if (daysSinceLastGen !== null && daysSinceLastGen > 30) {
+        signals.push({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          planId: user.planId,
+          level: 'medium',
+          reason: `Sem gerar há ${daysSinceLastGen} dias`,
+          daysSince: daysSinceLastGen,
+        });
+      }
+      continue;
+    }
+    if (user.planId === 'free_trial') {
+      if (lastGen === undefined && ageDays !== null && ageDays > 7) {
+        signals.push({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          planId: user.planId,
+          level: 'medium',
+          reason: 'Teste grátis sem uso',
+          daysSince: ageDays,
+        });
+      } else if (daysSinceLastGen !== null && daysSinceLastGen > 30) {
+        signals.push({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          planId: user.planId,
+          level: 'medium',
+          reason: `Sem gerar há ${daysSinceLastGen} dias`,
+          daysSince: daysSinceLastGen,
+        });
+      }
+    }
+  }
+
+  signals.sort((a, b) => {
+    if (a.level !== b.level) return a.level === 'high' ? -1 : 1;
+    // Sem data (cancelado / em atraso) é o sinal mais grave: vai primeiro.
+    if (a.daysSince === null && b.daysSince === null) return 0;
+    if (a.daysSince === null) return -1;
+    if (b.daysSince === null) return 1;
+    return b.daysSince - a.daysSince;
+  });
+
+  return {
+    creditsInCirculation,
+    creditsUsedThisMonth,
+    totalMonthlyQuota,
+    usageRateThisMonthPct,
+    activeSubscribers: activePaid.length,
+    subscribersWithoutGenerations,
+    trialTotal: trialUsers.length,
+    trialWithGeneration,
+    trialConversionPct,
+    churnSignals: signals,
+  };
+}
