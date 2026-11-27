@@ -1,94 +1,161 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Check, CheckCircle2, Clock, Copy, Gift, MessageCircle, Share2, UserPlus, Users } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { getMyInviteCode, getMyInvites, type InviteItem } from '../lib/db';
+import {
+  INVITE_REWARD_CREDITS,
+  buildInviteLink,
+  buildInviteShareMessage,
+} from '../shared/invites';
 
 type InviteStatus = 'entrou' | 'pendente';
 
-interface InvitedFriendExample {
+interface InvitedFriend {
   id: string;
   name: string;
   date: string;
   status: InviteStatus;
 }
 
-// TODO(invite): ligar ao Supabase
-const MOCK_INVITE_LINK = 'https://www.promptface.com.br/convite/EXEMPLO123';
-
-// TODO(invite): ligar ao Supabase
-const MOCK_SHARE_MESSAGE =
-  `Estou criando fotos profissionais com IA no PromptFace! Entre pelo meu link de convite e crie sua conta: ${MOCK_INVITE_LINK}`;
-
-// TODO(invite): ligar ao Supabase
-const MOCK_INVITE_SUMMARY = [
-  {
-    id: 'sent',
-    label: 'Convites enviados',
-    value: 12,
-    helper: 'Links compartilhados por você',
-    icon: Share2,
-  },
-  {
-    id: 'joined',
-    label: 'Amigos que entraram',
-    value: 5,
-    helper: 'Contas criadas pelo seu link',
-    icon: Users,
-  },
-  {
-    id: 'credits',
-    label: 'Créditos ganhos com convites',
-    value: 50,
-    helper: 'Bônus acumulado nas indicações',
-    icon: Gift,
-  },
-] as const;
-
-// TODO(invite): ligar ao Supabase
-const MOCK_INVITED_FRIENDS: InvitedFriendExample[] = [
-  {
-    id: 'friend-1',
-    name: 'Mariana Oliveira',
-    date: '24/11/2026',
-    status: 'entrou',
-  },
-  {
-    id: 'friend-2',
-    name: 'Lucas Ferreira',
-    date: '25/11/2026',
-    status: 'entrou',
-  },
-  {
-    id: 'friend-3',
-    name: 'Camila Santos',
-    date: '26/11/2026',
-    status: 'pendente',
-  },
-];
+function formatInviteDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
 
 export function InvitePage() {
   const { addToast } = useToast();
+  const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [invites, setInvites] = useState<InviteItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(MOCK_SHARE_MESSAGE)}`;
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [code, list] = await Promise.all([getMyInviteCode(), getMyInvites()]);
+        if (cancelled) return;
+        setInviteCode(code);
+        setInvites(list);
+      } catch (err) {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof Error ? err.message : 'Não foi possível carregar seus convites.'
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const inviteLink = inviteCode ? buildInviteLink(inviteCode) : null;
+  const shareMessage = inviteLink ? buildInviteShareMessage(inviteLink) : '';
+  const whatsappUrl = inviteLink
+    ? `https://wa.me/?text=${encodeURIComponent(shareMessage)}`
+    : undefined;
+
+  const friends: InvitedFriend[] = useMemo(
+    () =>
+      invites.map((item) => ({
+        id: item.id,
+        name: item.invitedName,
+        date: formatInviteDate(item.convertedAt ?? item.createdAt),
+        status: item.status === 'converted' ? 'entrou' : 'pendente',
+      })),
+    [invites]
+  );
+  const joinedCount = invites.filter((item) => item.status === 'converted').length;
+  const creditsEarned = invites.reduce((sum, item) => sum + item.rewardCredits, 0);
+
+  const summary = [
+    {
+      id: 'joined',
+      label: 'Amigos que entraram',
+      value: joinedCount,
+      helper: 'Contas criadas pelo seu link',
+      icon: Users,
+    },
+    {
+      id: 'credits',
+      label: 'Créditos ganhos com convites',
+      value: creditsEarned,
+      helper: 'Bônus acumulado nas indicações',
+      icon: Gift,
+    },
+    {
+      id: 'code',
+      label: 'Seu código de convite',
+      value: inviteCode ?? '—',
+      helper: 'Use no seu link pessoal',
+      icon: Share2,
+    },
+  ] as const;
 
   const handleCopyLink = async () => {
+    if (!inviteLink) return;
     try {
-      await navigator.clipboard.writeText(MOCK_INVITE_LINK);
+      await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
       addToast({
         variant: 'success',
         title: 'Link copiado',
-        description: 'Seu link de convite de exemplo foi copiado para a área de transferência.',
+        description: 'Seu link de convite foi copiado para a área de transferência.',
       });
       setTimeout(() => setCopied(false), 2500);
     } catch {
       addToast({
         variant: 'info',
         title: 'Copie manualmente',
-        description: MOCK_INVITE_LINK,
+        description: inviteLink,
       });
     }
   };
+
+  if (!user && !loading) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
+        <header className="space-y-3 border-b border-slate-200 dark:border-white/10 pb-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-[#8B5CF6]">
+            Programa de convites
+          </p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold text-slate-950 dark:text-white text-balance">
+            Convide amigos e ganhe créditos
+          </h1>
+          <p className="text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA] max-w-2xl leading-relaxed">
+            Cada amigo que criar a conta pelo seu link rende {INVITE_REWARD_CREDITS} créditos
+            para você.
+          </p>
+        </header>
+        <div className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-7 text-center space-y-4 shadow-sm dark:shadow-none">
+          <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
+            Faça login para ver seu link pessoal de convite.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110"
+          >
+            Entrar na conta
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-14 space-y-8">
@@ -101,9 +168,16 @@ export function InvitePage() {
           Convide amigos e ganhe créditos
         </h1>
         <p className="text-sm sm:text-base text-slate-700 dark:text-[#A1A1AA] max-w-2xl leading-relaxed">
-          Cada amigo que criar a conta pelo seu link rende créditos para você.
+          Cada amigo que criar a conta pelo seu link rende {INVITE_REWARD_CREDITS} créditos
+          para você.
         </p>
       </header>
+
+      {loadError && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          {loadError}
+        </p>
+      )}
 
       {/* Personal invite link & share card */}
       <section
@@ -134,7 +208,7 @@ export function InvitePage() {
               data-testid="invite-link-value"
               className="w-full min-h-[46px] px-3.5 sm:px-4 py-3 rounded-xl border border-slate-300 bg-slate-50 text-xs sm:text-sm text-slate-950 font-mono-num break-all select-all flex items-center dark:border-white/15 dark:bg-[#0D0D14] dark:text-white"
             >
-              {MOCK_INVITE_LINK}
+              {loading ? 'Carregando seu link...' : inviteLink ?? '—'}
             </div>
           </div>
 
@@ -142,7 +216,8 @@ export function InvitePage() {
             <button
               type="button"
               onClick={handleCopyLink}
-              className="min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all whitespace-nowrap shrink-0"
+              disabled={!inviteLink}
+              className="min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all whitespace-nowrap shrink-0 disabled:opacity-50"
             >
               {copied ? (
                 <>
@@ -173,7 +248,7 @@ export function InvitePage() {
       {/* Three summary cards */}
       <section aria-label="Resumo dos convites">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {MOCK_INVITE_SUMMARY.map((item) => {
+          {summary.map((item) => {
             const Icon = item.icon;
             return (
               <div
@@ -218,12 +293,18 @@ export function InvitePage() {
             </p>
           </div>
           <span className="text-xs text-slate-600 dark:text-[#A1A1AA] font-mono-num">
-            {MOCK_INVITED_FRIENDS.length} registros
+            {friends.length} {friends.length === 1 ? 'registro' : 'registros'}
           </span>
         </div>
 
-        <ul className="divide-y divide-slate-200 dark:divide-white/10">
-          {MOCK_INVITED_FRIENDS.map((friend) => {
+        {friends.length === 0 ? (
+          <p className="px-5 sm:px-6 py-8 text-center text-sm text-slate-600 dark:text-[#A1A1AA]">
+            Ninguém entrou pelo seu link ainda. Compartilhe e ganhe{' '}
+            {INVITE_REWARD_CREDITS} créditos por amigo.
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-200 dark:divide-white/10">
+            {friends.map((friend) => {
             const isJoined = friend.status === 'entrou';
             return (
               <li
@@ -255,7 +336,8 @@ export function InvitePage() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        )}
       </section>
     </div>
   );

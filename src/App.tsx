@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
@@ -18,6 +18,16 @@ import { LoginPage } from './pages/LoginPage';
 import { InvitePage } from './pages/InvitePage';
 import { AdminPage } from './pages/AdminPage';
 import { LgpdPage, PrivacyPage, TermsPage } from './pages/LegalPages';
+import { normalizeInviteCode } from './shared/invites';
+
+/** /convite/CODIGO → /login?convite=CODIGO (abre o cadastro com o convite). */
+function InviteRedirect() {
+  const { code } = useParams();
+  const inviteCode = normalizeInviteCode(code ?? null);
+  return (
+    <Navigate to={inviteCode ? `/login?convite=${inviteCode}` : '/login'} replace />
+  );
+}
 
 function AppShell() {
   const { user, loading, config, refreshConfig } = useAuth();
@@ -54,6 +64,7 @@ function AppShell() {
                 <Route path="/cenarios" element={<ScenariosPage />} />
                 <Route path="/planos" element={<PlansPage />} />
                 <Route path="/convites" element={<InvitePage />} />
+                <Route path="/convite/:code" element={<InviteRedirect />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/termos" element={<TermsPage />} />
                 <Route path="/privacidade" element={<PrivacyPage />} />

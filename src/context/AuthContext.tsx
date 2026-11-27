@@ -67,7 +67,9 @@ interface AuthContextValue {
   signUp: (
     name: string,
     email: string,
-    password: string
+    password: string,
+    /** Código de convite (do link /convite/CODIGO), se a conta veio por indicação. */
+    inviteCode?: string
   ) => Promise<{ error?: string; confirmationSent?: boolean }>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
@@ -249,14 +251,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signUp = useCallback(
-    async (name: string, email: string, password: string) => {
+    async (name: string, email: string, password: string, inviteCode?: string) => {
       try {
         const supabase = getSupabase();
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { name },
+            data: { name, ...(inviteCode ? { invite_code: inviteCode } : {}) },
             emailRedirectTo: `${window.location.origin}/login?confirmado=1`,
           },
         });

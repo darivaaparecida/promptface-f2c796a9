@@ -1253,6 +1253,49 @@ export async function adminAdjustCredits(
   return userFromRow(data as Row);
 }
 
+/** Conversão de convite: quem entrou pelo link de alguém. */
+export interface InviteItem {
+  id: string;
+  inviteCode: string;
+  invitedName: string;
+  invitedEmail: string;
+  status: 'pending' | 'converted';
+  rewardCredits: number;
+  createdAt: string;
+  convertedAt: string | null;
+}
+
+/** Código de convite do usuário logado (cria na primeira vez que abrir /convites). */
+export async function getMyInviteCode(): Promise<string> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('get_or_create_invite_code');
+  if (error) throw toError(error, 'Não foi possível carregar seu link de convite.');
+  if (typeof data !== 'string' || !data) {
+    throw new Error('Não foi possível carregar seu link de convite.');
+  }
+  return data;
+}
+
+/** Convites do usuário logado (RLS filtra só as próprias conversões). */
+export async function getMyInvites(): Promise<InviteItem[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('invites')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw toError(error, 'Não foi possível carregar seus convites.');
+  return ((data ?? []) as Row[]).map((row) => ({
+    id: String(row.id),
+    inviteCode: String(row.invite_code ?? ''),
+    invitedName: String(row.invited_name ?? row.invited_email ?? 'Convidado'),
+    invitedEmail: String(row.invited_email ?? ''),
+    status: row.status === 'pending' ? 'pending' : 'converted',
+    rewardCredits: Number(row.reward_credits ?? 0),
+    createdAt: String(row.created_at ?? ''),
+    convertedAt: row.converted_at ? String(row.converted_at) : null,
+  }));
+}
+
 export async function adminCreateNotice(
   title: string,
   message: string

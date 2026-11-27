@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { HERO_SHOWCASE_IMAGES, INITIAL_PLANS } from '../shared/catalog';
+import { normalizeInviteCode } from '../shared/invites';
 import { getPlanCyclePricing } from '../shared/plansCalculator';
 import { ButtonSpinner } from '../components/ButtonSpinner';
 import { PlanSavingsBadge } from '../components/PlanSavingsBadge';
@@ -21,8 +22,10 @@ type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
+  /** Código de convite do link /convite/CODIGO (vai para o cadastro). */
+  const inviteCode = normalizeInviteCode(searchParams.get('convite'));
   const initialMode: AuthMode =
-    searchParams.get('modo') === 'cadastro' ? 'register' : 'login';
+    searchParams.get('modo') === 'cadastro' || inviteCode ? 'register' : 'login';
 
   const { user, signIn, signUp, resetPassword, updatePassword, resendConfirmation, recoveryMode } =
     useAuth();
@@ -72,6 +75,16 @@ export function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Chegada por link de convite: o cadastro já abre com o código aplicado.
+  useEffect(() => {
+    if (inviteCode && !user) {
+      setInfoMsg(
+        'Você chegou por um convite! Crie sua conta e quem te convidou ganha 10 créditos.'
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -95,7 +108,12 @@ export function LoginPage() {
     setInfoMsg(null);
     setSubmitting(true);
     try {
-      const { error, confirmationSent } = await signUp(name, email, password);
+      const { error, confirmationSent } = await signUp(
+        name,
+        email,
+        password,
+        inviteCode ?? undefined
+      );
       if (error) {
         setErrorMsg(error);
         return;
