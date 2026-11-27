@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowRight, Coins, ImagePlus } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -17,13 +18,27 @@ import {
   type GenerationAnalyticsInput,
   type LedgerAnalyticsInput,
 } from '../shared/mySpaceAnalytics';
+import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+
+/** Formato mínimo que a faixa de recentes usa (MySpacePage tem seu próprio GenerationItem local). */
+export interface RecentGenerationItem {
+  id: string;
+  scenarioTitle: string;
+  createdAt: string;
+  costCredits: number;
+  url: string;
+}
 
 interface MySpaceDashboardProps {
   generations: GenerationAnalyticsInput[];
   remainingCredits: number;
   planId?: string;
   ledger?: LedgerAnalyticsInput[];
+  /** Gerações completas (com miniatura) para a faixa de recentes. */
+  recentGenerations?: RecentGenerationItem[];
+  /** Abre a geração no visualizador da galeria. */
+  onOpenGeneration?: (item: RecentGenerationItem) => void;
 }
 
 interface MonthlyTooltipPayloadItem {
@@ -86,8 +101,11 @@ export function MySpaceDashboard({
   remainingCredits,
   planId,
   ledger,
+  recentGenerations,
+  onOpenGeneration,
 }: MySpaceDashboardProps) {
   const { isDark } = useTheme();
+  const { getMediaUrl } = useAuth();
   const summary = useMemo(
     () =>
       computeMySpaceDashboardSummary({
@@ -102,6 +120,15 @@ export function MySpaceDashboard({
 
   const { creditsOverview } = summary;
   const monthDelta = summary.currentMonthGenerations - summary.previousMonthGenerations;
+  const latestGenerations = useMemo(
+    () =>
+      (recentGenerations ?? [])
+        .slice()
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 4),
+    [recentGenerations]
+  );
+  const isFreeTrial = (planId ?? 'free_trial') === 'free_trial';
 
   const gridStroke = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.1)';
   const tickColor = isDark ? '#A1A1AA' : '#334155';
@@ -312,6 +339,110 @@ export function MySpaceDashboard({
               <span className="text-slate-950 dark:text-white font-mono-num">{creditsOverview.usedCreditsThisMonth}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Gerações recentes */}
+      <div className="rounded-2xl border border-slate-300 dark:border-white/10 pf-card-surface p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+          <div>
+            <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+              Gerações recentes
+            </h2>
+            <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
+              Suas últimas fotografias geradas — toque para abrir
+            </p>
+          </div>
+          <Link
+            to="/criar"
+            className="inline-flex items-center gap-1 text-xs font-medium text-violet-700 hover:text-violet-900 dark:text-[#8B5CF6] dark:hover:text-[#A855F7] whitespace-nowrap"
+          >
+            <ImagePlus className="w-3.5 h-3.5" aria-hidden="true" />
+            Criar nova foto
+          </Link>
+        </div>
+
+        {latestGenerations.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-100/80 dark:border-white/10 dark:bg-[#08080C]/60 flex flex-col items-center justify-center text-center px-4 py-8 gap-3">
+            <p className="text-sm text-slate-700 dark:text-[#A1A1AA]">
+              Você ainda não gerou nenhuma foto.
+            </p>
+            <Link
+              to="/criar"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white hover:brightness-110"
+            >
+              Gerar primeira foto
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {latestGenerations.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenGeneration?.(item)}
+                aria-label={`Abrir ${item.scenarioTitle}`}
+                className="group text-left rounded-xl overflow-hidden border border-slate-300 dark:border-white/10 bg-white dark:bg-[#08080C] hover:border-violet-500 dark:hover:border-[#8B5CF6] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-700 dark:focus-visible:ring-[#8B5CF6]"
+              >
+                <span className="block aspect-[3/4] overflow-hidden bg-slate-100 dark:bg-[#17171F]">
+                  <img
+                    src={getMediaUrl(item.url)}
+                    alt={item.scenarioTitle}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform"
+                  />
+                </span>
+                <span className="block px-3 py-2.5">
+                  <span className="block text-xs font-semibold text-slate-950 dark:text-white truncate">
+                    {item.scenarioTitle}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+                    {new Date(item.createdAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'short',
+                    })}{' '}
+                    · {item.costCredits} créditos
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Upgrade da assinatura */}
+      <div className="rounded-2xl border border-violet-600/40 bg-gradient-to-r from-violet-600/10 via-fuchsia-500/10 to-violet-600/10 dark:border-[#8B5CF6]/40 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <span className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-white">
+            <Coins className="w-5 h-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+              {isFreeTrial
+                ? 'Precisa de mais fotos?'
+                : `Plano ${creditsOverview.planLabel} — quer mais volume?`}
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+              {isFreeTrial
+                ? 'Você está no teste grátis. Assine um plano e gere fotos todos os meses, sem ficar sem créditos.'
+                : 'Faça upgrade para gerar mais fotos por mês e liberar o Nano Banana Pro com mais frequência.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <Link
+            to="/planos"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 whitespace-nowrap"
+          >
+            Fazer upgrade
+            <ArrowRight className="w-4 h-4" aria-hidden="true" />
+          </Link>
+          <Link
+            to="/planos"
+            className="text-xs font-medium text-violet-700 hover:text-violet-900 dark:text-[#8B5CF6] dark:hover:text-[#A855F7] whitespace-nowrap"
+          >
+            Comparar planos
+          </Link>
         </div>
       </div>
     </section>

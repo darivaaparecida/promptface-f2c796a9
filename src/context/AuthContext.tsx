@@ -20,6 +20,7 @@ import {
 } from '../shared/providerQuota';
 import { getSupabase, isSupabaseConfigured, SUPABASE_CONFIG_ERROR } from '../lib/supabase';
 import { clearProfileCache, fetchPublicSettings, getMyProfile } from '../lib/db';
+import { CREDITS_CHANGED_EVENT } from '../shared/creditsEvents';
 
 import type { BillingInterval, PlanId } from '../shared/catalog';
 
@@ -200,6 +201,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Só na montagem: a sessão é gerenciada pelo listener do Supabase Auth.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Saldo em tempo real: qualquer parte do app que muda os créditos
+  // (resgate mensal, ajuste do admin e, na Fase 2, a dedução após gerar
+  // uma foto ou editar no Studio) dispara o evento promptface:credits-changed
+  // e o perfil é recarregado na hora — a Navbar atualiza sem F5.
+  // Voltar para a aba também recarrega o saldo (no máximo 1 vez por minuto),
+  // o que cobre mudanças feitas em outra aba ou sessão.
+  useEffect(() => {
+    const lastRefreshRef = { current: 0 };
+    const refreshNow = () => {
+      lastRefreshRef.current = Date.now();
+      void refreshUser();
+    };
+    const onCreditsChanged = () => refreshNow();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRefreshRef.current > 60_000) {
+        refreshNow();
+      }
+    };
+    window.addEventListener(CREDITS_CHANGED_EVENT, onCreditsChanged);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener(CREDITS_CHANGED_EVENT, onCreditsChanged);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [refreshUser]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {

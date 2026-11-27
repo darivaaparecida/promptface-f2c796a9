@@ -12,6 +12,7 @@ import {
   type AdminOverview,
 } from '../lib/db';
 import { useToast } from '../context/ToastContext';
+import { notifyCreditsChanged } from '../shared/creditsEvents';
 import type { PlanDefinition, ScenarioItem } from '../shared/catalog';
 import { DEFAULT_MAINTENANCE_CONFIG } from '../shared/adminStats';
 import { DEFAULT_FAL_FREE_LIMIT } from '../shared/providerQuota';
@@ -112,6 +113,7 @@ export function AdminPage() {
     try {
       await adminAdjustCredits(userId, delta, 'Ajuste manual pelo painel admin');
       setFeedback('Créditos atualizados.');
+      notifyCreditsChanged();
       await loadAdmin();
     } catch (err) {
       addToast({

@@ -1103,6 +1103,11 @@ export function MySpacePage() {
               remainingCredits={user?.credits ?? 0}
               planId={subscription?.planId ?? user?.planId}
               ledger={ledger}
+              recentGenerations={generations}
+              onOpenGeneration={(item) => {
+                const full = generations.find((g) => g.id === item.id);
+                if (full) setLightboxItem(full);
+              }}
             />
           )}
           {/* TAB 1 & 2: GALLERY & FAVORITES */}

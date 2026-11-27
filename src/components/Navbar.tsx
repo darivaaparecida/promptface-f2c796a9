@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { getThemeShortLabel, getThemeToggleLabel } from '../shared/theme';
 import { BrandLogo } from './BrandLogo';
+import { CreditIndicator } from './CreditIndicator';
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -84,6 +85,7 @@ export function Navbar() {
 
           {user ? (
             <>
+              <CreditIndicator />
               {lowCredits && (
                 <Link
                   to="/planos"
@@ -93,7 +95,7 @@ export function Navbar() {
                 >
                   <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse" aria-hidden="true" />
                   <span>
-                    {user.credits} cr — Recarregar
+                    Recarregar
                   </span>
                 </Link>
               )}
@@ -101,7 +103,7 @@ export function Navbar() {
                 to="/meu-espaco"
                 className="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider text-white bg-gradient-to-r from-[#A855F7] to-[#EC4899] shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 transition-all whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]"
               >
-                Meu Espaço · {user.credits} cr
+                Meu Espaço
               </Link>
             </>
           ) : (
@@ -114,19 +116,9 @@ export function Navbar() {
           )}
         </div>
 
-        {/* Mobile controls: theme toggle + menu trigger */}
+        {/* Mobile controls: credit indicator + theme toggle + menu trigger */}
         <div className="md:hidden flex items-center gap-2 shrink-0">
-          {user && lowCredits && (
-            <Link
-              to="/planos"
-              aria-label={`Créditos baixos: ${user.credits} créditos restantes. Ver planos para recarregar.`}
-              title="Seus créditos estão acabando — ver planos"
-              className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl border border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-semibold whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-            >
-              <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse" aria-hidden="true" />
-              <span>{user.credits} cr</span>
-            </Link>
-          )}
+          {user && <CreditIndicator compact />}
           <button
             type="button"
             data-testid="theme-toggle-button-mobile"
