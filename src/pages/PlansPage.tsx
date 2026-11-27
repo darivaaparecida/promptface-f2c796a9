@@ -581,7 +581,7 @@ export function PlansPage() {
                   label="Novas fotografias por mês"
                   costHint={`${CREDIT_COSTS.generate} créditos por foto`}
                   value={photosPerMonth}
-                  max={80}
+                  max={160}
                   step={1}
                   onChange={setPhotosPerMonth}
                 />
@@ -629,7 +629,7 @@ export function PlansPage() {
                 </p>
                 <p className="text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
                   {usageSummary.exceedsPremiumLimit
-                    ? 'Seu volume supera os 800 créditos do ciclo Premium mensal. Para uso contínuo acima disso, recomenda-se iniciar pelo Premium e acompanhar o saldo em Meu Espaço.'
+                    ? 'Seu volume supera os 1.600 créditos do ciclo Premium mensal. Para uso contínuo acima disso, recomenda-se iniciar pelo Premium e acompanhar o saldo em Meu Espaço.'
                     : usageSummary.recommendedPlanId === 'free_trial'
                     ? 'Os 10 créditos gratuitos do cadastro já cobrem esse teste inicial sem custo.'
                     : recommendedPlanObj && recommendedCyclePricing
@@ -749,6 +749,11 @@ export function PlansPage() {
                 label: 'Gerar foto',
                 cost: `${CREDIT_COSTS.generate} créditos`,
                 detail: '84 cenários ou criação livre',
+              },
+              {
+                label: 'Gerar foto com Nano Banana Pro',
+                cost: `${CREDIT_COSTS.generate_pro} créditos`,
+                detail: 'Máxima qualidade de rosto e detalhes',
               },
               {
                 label: 'Criar variação',

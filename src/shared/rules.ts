@@ -2,6 +2,8 @@ import type { PreferredAiModelId } from './aiModels';
 
 export const CREDIT_COSTS = {
   generate: 10,
+  /** Geração com o Nano Banana Pro (máxima qualidade): o dobro da geração padrão. */
+  generate_pro: 20,
   variation: 10,
   studio_edit: 10,
   enhance_prompt: 1,

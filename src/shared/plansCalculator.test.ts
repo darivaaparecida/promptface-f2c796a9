@@ -19,7 +19,7 @@ test('calculateMonthlyCreditNeeds recommends free_trial up to 10 credits', () =>
   assert.equal(summary.exceedsPremiumLimit, false);
 });
 
-test('calculateMonthlyCreditNeeds recommends essencial between 11 and 80 credits', () => {
+test('calculateMonthlyCreditNeeds recommends essencial between 11 and 300 credits', () => {
   const summary = calculateMonthlyCreditNeeds({
     photosPerMonth: 6,
     studioActionsPerMonth: 2,
@@ -30,36 +30,36 @@ test('calculateMonthlyCreditNeeds recommends essencial between 11 and 80 credits
   assert.equal(summary.exceedsPremiumLimit, false);
 });
 
-test('calculateMonthlyCreditNeeds recommends pro between 81 and 200 credits', () => {
+test('calculateMonthlyCreditNeeds recommends pro between 301 and 800 credits', () => {
   const summary = calculateMonthlyCreditNeeds({
-    photosPerMonth: 15,
+    photosPerMonth: 40,
     studioActionsPerMonth: 4,
     promptEnhancementsPerMonth: 10,
   });
-  assert.equal(summary.generationCredits, 150);
+  assert.equal(summary.generationCredits, 400);
   assert.equal(summary.studioCredits, 40);
   assert.equal(summary.enhanceCredits, 10);
-  assert.equal(summary.totalCredits, 200);
+  assert.equal(summary.totalCredits, 450);
   assert.equal(summary.recommendedPlanId, 'pro');
   assert.equal(summary.exceedsPremiumLimit, false);
 });
 
-test('calculateMonthlyCreditNeeds recommends premium above 400 credits and flags >800', () => {
+test('calculateMonthlyCreditNeeds recommends premium above 800 credits and flags >1600', () => {
   const premiumFit = calculateMonthlyCreditNeeds({
-    photosPerMonth: 35,
+    photosPerMonth: 70,
     studioActionsPerMonth: 15,
     promptEnhancementsPerMonth: 20,
   });
-  assert.equal(premiumFit.totalCredits, 520);
+  assert.equal(premiumFit.totalCredits, 870);
   assert.equal(premiumFit.recommendedPlanId, 'premium');
   assert.equal(premiumFit.exceedsPremiumLimit, false);
 
   const highUsage = calculateMonthlyCreditNeeds({
-    photosPerMonth: 85,
+    photosPerMonth: 165,
     studioActionsPerMonth: 0,
     promptEnhancementsPerMonth: 0,
   });
-  assert.equal(highUsage.totalCredits, 850);
+  assert.equal(highUsage.totalCredits, 1650);
   assert.equal(highUsage.recommendedPlanId, 'premium');
   assert.equal(highUsage.exceedsPremiumLimit, true);
 });
@@ -92,14 +92,14 @@ test('getPlanUnitMetrics computes cost per photo and savings vs PRO', () => {
 
   const proMetrics = getPlanUnitMetrics(pro, pro);
   assert.equal(proMetrics.savingsVsBasePercent, 0);
-  assert.ok(proMetrics.pricePerPhotoFormatted.includes('1,25'));
+  assert.ok(proMetrics.pricePerPhotoFormatted.includes('0,62'));
 
   const premiumMetrics = getPlanUnitMetrics(premium, pro);
   assert.equal(premiumMetrics.savingsVsBasePercent, 0);
-  assert.ok(premiumMetrics.pricePerPhotoFormatted.includes('1,25'));
+  assert.ok(premiumMetrics.pricePerPhotoFormatted.includes('0,62'));
 
   const premiumYearlyMetrics = getPlanUnitMetrics(premium, pro, 'yearly');
-  assert.ok(premiumYearlyMetrics.pricePerPhotoFormatted.includes('0,83'));
+  assert.ok(premiumYearlyMetrics.pricePerPhotoFormatted.includes('0,42'));
 });
 
 test('getPlanSavingsBadgeInfo returns null on monthly and highlights exact BRL savings on quarterly and yearly', () => {

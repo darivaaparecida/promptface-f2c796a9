@@ -2,9 +2,8 @@ import type { PlanId } from './catalog';
 
 export type PreferredAiModelId =
   | 'auto'
-  | 'gemini-3.1-flash-lite-image'
-  | 'gemini-nano-banana-pro'
-  | 'flux-pro/kontext/max';
+  | 'gemini-nano-banana-2.1'
+  | 'gemini-nano-banana-pro';
 
 export interface AiModelOption {
   id: PreferredAiModelId;
@@ -30,14 +29,14 @@ export const PREFERRED_AI_MODELS: readonly AiModelOption[] = [
     highQuality: false,
   },
   {
-    id: 'gemini-3.1-flash-lite-image',
-    label: 'Gemini 3.1 Flash Lite Image',
-    shortLabel: 'Gemini 3.1 Flash Lite',
-    badge: 'Mais rápido',
+    id: 'gemini-nano-banana-2.1',
+    label: 'Gemini Nano Banana 2.1',
+    shortLabel: 'Gemini Nano Banana 2.1',
+    badge: 'Padrão',
     description:
-      'Ideal para testar vários cenários e variações de prompt em poucos segundos com iluminação natural.',
+      'O modelo padrão de geração: ótima preservação facial com o melhor custo por foto (10 créditos).',
     provider: 'gemini',
-    highQuality: false,
+    highQuality: true,
   },
   {
     id: 'gemini-nano-banana-pro',
@@ -45,18 +44,8 @@ export const PREFERRED_AI_MODELS: readonly AiModelOption[] = [
     shortLabel: 'Gemini Nano Banana Pro',
     badge: 'Máxima qualidade',
     description:
-      'A maior qualidade de preservação facial e detalhes, incluída no plano Essencial (1K).',
+      'A maior qualidade de preservação facial e detalhes. Custa 20 créditos por foto.',
     provider: 'gemini',
-    highQuality: true,
-  },
-  {
-    id: 'flux-pro/kontext/max',
-    label: 'FLUX.1 Kontext Max',
-    shortLabel: 'FLUX.1 Kontext Max',
-    badge: 'Máxima qualidade',
-    description:
-      'O melhor modelo para gerar e editar com o rosto preservado, incluído nos planos PRO e PREMIUM.',
-    provider: 'fal-flux-kontext',
     highQuality: true,
   },
 ] as const;
@@ -100,17 +89,14 @@ export function resolveGenerationModelPreference(
 }
 
 // ---------------------------------------------------------------------------
-// Modelo por plano — cada plano libera um tipo de IA (decisão 27/11/2026,
-// provedor fal.ai; substitui o mapeamento de 26/11/2026).
-// Teste grátis: FLUX.1 Kontext Max SÓ 1 vez por conta (10 créditos) e depois
-// Nano Banana 2 Lite. Na prática, o "só 1 vez" já é garantido pelo saldo:
-// o cadastro dá 10 créditos, ou seja, 1 geração de 10 créditos; depois
-// disso o usuário fica sem saldo até assinar. A trava explícita por flag
-// (free_max_used_at) entra com a geração na Fase 2.
-// Essencial: Nano Banana Pro (o melhor Nano Banana), 1K. PRO e PREMIUM:
-// FLUX.1 Kontext Max. O "Automático" resolve para o modelo do plano.
-// A geração (Fase 2) DEVE usar resolveEffectiveModel para decidir o modelo
-// — nunca confie só no valor salvo no navegador.
+// Modelo por plano — decisão 27/11/2026 (substitui o mapeamento fal.ai/Max
+// do mesmo dia): o Nano Banana GERA as imagens e o FLUX Kontext fica só
+// para EDIÇÃO no Studio. O 2.1 já serve demais e é o padrão em TODOS os
+// planos (10 créditos por foto, teste grátis incluído); o Pro é uma opção
+// paga — 20 créditos por foto — para quem quiser a máxima qualidade.
+// O "Automático" resolve para o 2.1. A geração (Fase 2) DEVE usar
+// resolveEffectiveModel para decidir o modelo e cobrar o custo certo —
+// nunca confie só no valor salvo no navegador.
 // ---------------------------------------------------------------------------
 
 export type PlanModelResolution = '1K' | '2K';
@@ -124,20 +110,20 @@ export interface PlanModelAccess {
 
 export const PLAN_MODEL_ACCESS: Record<PlanId, PlanModelAccess> = {
   free_trial: {
-    allowed: ['flux-pro/kontext/max', 'gemini-3.1-flash-lite-image'],
-    autoModel: 'flux-pro/kontext/max',
+    allowed: ['gemini-nano-banana-2.1', 'gemini-nano-banana-pro'],
+    autoModel: 'gemini-nano-banana-2.1',
   },
   essencial: {
-    allowed: ['gemini-nano-banana-pro'],
-    autoModel: 'gemini-nano-banana-pro',
+    allowed: ['gemini-nano-banana-2.1', 'gemini-nano-banana-pro'],
+    autoModel: 'gemini-nano-banana-2.1',
   },
   pro: {
-    allowed: ['flux-pro/kontext/max'],
-    autoModel: 'flux-pro/kontext/max',
+    allowed: ['gemini-nano-banana-2.1', 'gemini-nano-banana-pro'],
+    autoModel: 'gemini-nano-banana-2.1',
   },
   premium: {
-    allowed: ['flux-pro/kontext/max'],
-    autoModel: 'flux-pro/kontext/max',
+    allowed: ['gemini-nano-banana-2.1', 'gemini-nano-banana-pro'],
+    autoModel: 'gemini-nano-banana-2.1',
   },
 };
 
@@ -147,7 +133,7 @@ export function getAllowedPreferredModels(planId: PlanId): PreferredAiModelId[] 
   return ['auto', ...access.allowed];
 }
 
-/** Resolução máxima (decisão 27/11/2026): 1K para todos os planos por enquanto; a resolução máxima do Kontext Max será confirmada na Fase 2. */
+/** Resolução máxima: 1K para todos os planos por enquanto. */
 export function getMaxResolutionForPlanModel(
   _planId: PlanId,
   _model: PreferredAiModelId

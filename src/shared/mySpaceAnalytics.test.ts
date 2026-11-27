@@ -47,11 +47,11 @@ test('computeCreditsOverview calculates net monthly usage from ledger accounting
   });
 
   assert.equal(overview.planLabel, 'Plano PRO');
-  assert.equal(overview.monthlyQuotaCredits, 400);
+  assert.equal(overview.monthlyQuotaCredits, 800);
   assert.equal(overview.remainingCredits, 170);
   assert.equal(overview.usedCreditsThisMonth, 31);
   assert.equal(overview.remainingPhotosEstimate, 17);
-  assert.equal(overview.remainingPercent, 43); // 170 / max(400, 170+31=201) -> 43%
+  assert.equal(overview.remainingPercent, 21); // 170 / max(800, 170+31=201) -> 21%
   assert.equal(overview.chartSlices.length, 2);
 });
 

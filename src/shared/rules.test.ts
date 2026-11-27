@@ -41,6 +41,9 @@ test('plans math is consistent and never advertises unlimited', () => {
 test('credit reservation, sufficiency, and refund logic work atomically', () => {
   assert.equal(canAffordOperation(10, 'generate'), true);
   assert.equal(canAffordOperation(9, 'generate'), false);
+  assert.equal(CREDIT_COSTS.generate_pro, 20);
+  assert.equal(canAffordOperation(20, 'generate_pro'), true);
+  assert.equal(canAffordOperation(19, 'generate_pro'), false);
   assert.equal(canAffordOperation(1, 'enhance_prompt'), true);
 
   const res = reserveCredits(10, 'generate');

@@ -50,7 +50,7 @@ function clampCount(value: number, max: number): number {
 export function calculateMonthlyCreditNeeds(
   input: MonthlyUsageInput
 ): MonthlyUsageSummary {
-  const photosPerMonth = clampCount(input.photosPerMonth, 100);
+  const photosPerMonth = clampCount(input.photosPerMonth, 200);
   const studioActionsPerMonth = clampCount(input.studioActionsPerMonth, 100);
   const promptEnhancementsPerMonth = clampCount(input.promptEnhancementsPerMonth, 200);
 
@@ -62,9 +62,9 @@ export function calculateMonthlyCreditNeeds(
   let recommendedPlanId: PlanId = 'premium';
   if (totalCredits <= INITIAL_SIGNUP_CREDITS) {
     recommendedPlanId = 'free_trial';
-  } else if (totalCredits <= 150) {
+  } else if (totalCredits <= 300) {
     recommendedPlanId = 'essencial';
-  } else if (totalCredits <= 400) {
+  } else if (totalCredits <= 800) {
     recommendedPlanId = 'pro';
   }
 
@@ -77,7 +77,7 @@ export function calculateMonthlyCreditNeeds(
     enhanceCredits,
     totalCredits,
     recommendedPlanId,
-    exceedsPremiumLimit: totalCredits > 800,
+    exceedsPremiumLimit: totalCredits > 1600,
   };
 }
 

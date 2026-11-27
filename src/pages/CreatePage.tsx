@@ -32,6 +32,7 @@ import { CREDIT_COSTS } from '../shared/rules';
 import {
   getPreferredAiModelOption,
   normalizePreferredAiModel,
+  resolveEffectiveModel,
   type PreferredAiModelId,
 } from '../shared/aiModels';
 import { useAuth } from '../context/AuthContext';
@@ -300,7 +301,17 @@ export function CreatePage() {
   };
 
   const hasFaces = faces.length > 0;
-  const hasEnoughCredits = (user?.credits ?? 0) >= CREDIT_COSTS.generate;
+  // Custo da geração depende do modelo efetivo: 10 créditos com o 2.1,
+  // 20 créditos com o Nano Banana Pro (opção paga de máxima qualidade).
+  const effectiveGenerationModel = resolveEffectiveModel(
+    user?.planId ?? 'free_trial',
+    preferredModel
+  );
+  const generationCost =
+    effectiveGenerationModel.model === 'gemini-nano-banana-pro'
+      ? CREDIT_COSTS.generate_pro
+      : CREDIT_COSTS.generate;
+  const hasEnoughCredits = (user?.credits ?? 0) >= generationCost;
   const falQuota = config.falQuota;
   const falBlocked = Boolean(falQuota?.active && falQuota.exhausted);
   const avatarDisplay = resolveProfileAvatarDisplay({
@@ -583,7 +594,7 @@ export function CreatePage() {
               </p>
               <p className="text-xs text-amber-900 dark:text-[#A1A1AA]">
                 Você possui {user?.credits ?? 0} créditos. Cada foto gerada custa{' '}
-                {CREDIT_COSTS.generate} créditos.
+                {generationCost} créditos.
               </p>
             </div>
           </div>
@@ -1174,7 +1185,7 @@ export function CreatePage() {
                 <p className="mt-0.5 text-[11px] opacity-90 font-mono-num">
                   {hasEnoughCredits
                     ? `${user?.credits ?? 0} disponíveis`
-                    : `Mínimo ${CREDIT_COSTS.generate}`}
+                    : `Mínimo ${generationCost}`}
                 </p>
               </div>
             </div>
@@ -1243,7 +1254,7 @@ export function CreatePage() {
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-white/10">
                 <dt className="text-slate-600 dark:text-[#A1A1AA]">Custo da geração</dt>
                 <dd className="text-slate-950 dark:text-white font-semibold font-mono-num">
-                  {CREDIT_COSTS.generate} créditos
+                  {generationCost} créditos
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
@@ -1299,7 +1310,7 @@ export function CreatePage() {
                   ? 'Gerando fotografia...'
                   : falBlocked
                   ? `Limite gratuito (${falQuota?.limit ?? 12}) atingido`
-                  : `Confirmar e gerar foto (${CREDIT_COSTS.generate} créditos)`}
+                  : `Confirmar e gerar foto (${generationCost} créditos)`}
               </span>
             </button>
 
@@ -1323,7 +1334,7 @@ export function CreatePage() {
             <div className="min-w-0 flex-1">
               <p className="text-[11px] text-slate-600 dark:text-[#A1A1AA]">Custo da geração</p>
               <p className="text-sm font-semibold text-slate-950 dark:text-white font-mono-num truncate">
-                {CREDIT_COSTS.generate} créditos · Saldo {user?.credits ?? 0}
+                {generationCost} créditos · Saldo {user?.credits ?? 0}
               </p>
             </div>
             <button
@@ -1338,7 +1349,7 @@ export function CreatePage() {
                   ? 'Gerando fotografia...'
                   : falBlocked
                   ? `Limite gratuito (${falQuota?.limit ?? 12}) atingido`
-                  : `Confirmar e gerar foto (${CREDIT_COSTS.generate} créditos)`}
+                  : `Confirmar e gerar foto (${generationCost} créditos)`}
               </span>
             </button>
           </div>
