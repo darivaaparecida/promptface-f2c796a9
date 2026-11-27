@@ -12,6 +12,8 @@ export const INVITE_MILESTONE_REWARD_CREDITS = 5;
 export const INVITE_SUBSCRIPTION_REWARD_CREDITS = 30;
 export const INVITE_SUBSCRIPTION_FRIEND_BONUS = 10;
 export const INVITE_FREE_BONUS_MONTHLY_CAP = 5;
+/** Meta de indicação exibida na página de convites (amigos cadastrados). */
+export const INVITE_GOAL_FRIENDS = 5;
 export const INVITE_CODE_LENGTH = 8;
 export const INVITE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const INVITE_SITE_URL = 'https://www.promptface.com.br';

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CheckCircle2, Clock, Copy, Gift, MessageCircle, Share2, UserPlus, Users } from 'lucide-react';
+import { Check, CheckCircle2, Clock, Copy, Gift, MessageCircle, Share2, Twitter, UserPlus, Users } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { getMyInviteCode, getMyInvites, type InviteItem } from '../lib/db';
 import {
+  INVITE_GOAL_FRIENDS,
+  INVITE_MILESTONE_REWARD_CREDITS,
   INVITE_REWARD_CREDITS,
+  INVITE_SUBSCRIPTION_REWARD_CREDITS,
   buildInviteLink,
   buildInviteShareMessage,
 } from '../shared/invites';
@@ -68,6 +71,9 @@ export function InvitePage() {
   const shareMessage = inviteLink ? buildInviteShareMessage(inviteLink) : '';
   const whatsappUrl = inviteLink
     ? `https://wa.me/?text=${encodeURIComponent(shareMessage)}`
+    : undefined;
+  const twitterUrl = inviteLink
+    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`
     : undefined;
 
   const friends: InvitedFriend[] = useMemo(
@@ -241,6 +247,19 @@ export function InvitePage() {
               <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>Compartilhar no WhatsApp</span>
             </a>
+
+            {twitterUrl && (
+              <a
+                href={twitterUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Compartilhar convite no X"
+                className="min-h-[46px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-slate-300 bg-white text-slate-950 hover:bg-slate-100 dark:border-white/15 dark:bg-[#17171F] dark:text-white dark:hover:bg-white/5 text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap shrink-0"
+              >
+                <Twitter className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Compartilhar no X</span>
+              </a>
+            )}
           </div>
         </div>
       </section>
@@ -275,6 +294,55 @@ export function InvitePage() {
         </div>
       </section>
 
+      {/* Metas de indicação */}
+      <section
+        aria-label="Metas de indicação"
+        className="rounded-2xl border border-violet-600/40 bg-gradient-to-r from-violet-600/10 via-fuchsia-500/10 to-violet-600/10 dark:border-[#8B5CF6]/40 p-5 sm:p-6"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-base font-semibold text-slate-950 dark:text-white">
+            Meta de indicação
+          </h2>
+          <span className="text-xs text-slate-700 dark:text-[#A1A1AA] font-mono-num">
+            {Math.min(friends.length, INVITE_GOAL_FRIENDS)} de {INVITE_GOAL_FRIENDS} amigos
+          </span>
+        </div>
+        <div
+          className="mt-3 h-2 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={Math.round((Math.min(friends.length, INVITE_GOAL_FRIENDS) / INVITE_GOAL_FRIENDS) * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Progresso da meta de indicação"
+        >
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#A855F7] to-[#EC4899] transition-all"
+            style={{
+              width: `${(Math.min(friends.length, INVITE_GOAL_FRIENDS) / INVITE_GOAL_FRIENDS) * 100}%`,
+            }}
+          />
+        </div>
+        <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+          {friends.length >= INVITE_GOAL_FRIENDS ? (
+            <>
+              Meta batida! Você já trouxe {friends.length}{' '}
+              {friends.length === 1 ? 'amigo' : 'amigos'} — cada um rendeu{' '}
+              {INVITE_REWARD_CREDITS} créditos, e quando eles enviarem a 1ª foto vocês
+              ganham mais {INVITE_MILESTONE_REWARD_CREDITS} cada.
+            </>
+          ) : (
+            <>
+              Faltam {INVITE_GOAL_FRIENDS - friends.length}{' '}
+              {INVITE_GOAL_FRIENDS - friends.length === 1 ? 'amigo' : 'amigos'} para a
+              meta. Cada amigo que criar a conta rende {INVITE_REWARD_CREDITS} créditos
+              para você — e quando ele enviar a 1ª foto, vocês dois ganham mais{' '}
+              {INVITE_MILESTONE_REWARD_CREDITS}. Se ele assinar um plano, você ganha{' '}
+              {INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos.
+            </>
+          )}
+        </p>
+      </section>
+
       {/* Invited friends list */}
       <section
         aria-labelledby="invited-friends-heading"
@@ -304,12 +372,13 @@ export function InvitePage() {
           </p>
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-white/10">
-            {friends.map((friend) => {
+            {friends.map((friend, index) => {
             const isJoined = friend.status === 'entrou';
             return (
               <li
                 key={friend.id}
-                className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 hover:bg-slate-50/70 dark:hover:bg-white/[0.02] transition-colors"
+                style={{ animationDelay: `${index * 70}ms` }}
+                className="pf-fade-in-up px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 hover:bg-slate-50/70 dark:hover:bg-white/[0.02] transition-colors"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-950 dark:text-white truncate">
@@ -338,6 +407,61 @@ export function InvitePage() {
           })}
           </ul>
         )}
+      </section>
+
+      {/* Perguntas frequentes sobre os créditos por indicação */}
+      <section
+        aria-labelledby="invite-faq-heading"
+        className="rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-[#17171F] p-5 sm:p-6 shadow-sm dark:shadow-none"
+      >
+        <h2
+          id="invite-faq-heading"
+          className="font-display text-base font-semibold text-slate-950 dark:text-white"
+        >
+          Perguntas frequentes
+        </h2>
+        <div className="mt-4 space-y-3">
+          <details className="rounded-xl border border-slate-200 dark:border-white/10 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-950 dark:text-white">
+              Quantos créditos eu ganho por amigo?
+            </summary>
+            <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+              {INVITE_REWARD_CREDITS} créditos quando o amigo cria a conta pelo seu
+              link, mais {INVITE_MILESTONE_REWARD_CREDITS} quando ele enviar a 1ª foto
+              de referência. Se ele assinar qualquer plano, você ganha{' '}
+              {INVITE_SUBSCRIPTION_REWARD_CREDITS} créditos.
+            </p>
+          </details>
+          <details className="rounded-xl border border-slate-200 dark:border-white/10 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-950 dark:text-white">
+              O que meu amigo ganha?
+            </summary>
+            <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+              Os 10 créditos de boas-vindas (1 foto grátis) mais 5 extras quando
+              enviar a 1ª foto — 15 no total. Se ele assinar um plano, ganha mais 10
+              créditos no 1º mês.
+            </p>
+          </details>
+          <details className="rounded-xl border border-slate-200 dark:border-white/10 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-950 dark:text-white">
+              Existe limite de bônus por mês?
+            </summary>
+            <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+              O bônus de 1ª foto é limitado a 5 por mês (25 créditos). O bônus por
+              assinatura não tem limite — cada amigo que assinar rende 30 créditos.
+            </p>
+          </details>
+          <details className="rounded-xl border border-slate-200 dark:border-white/10 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-950 dark:text-white">
+              Posso usar meu próprio link?
+            </summary>
+            <p className="mt-2 text-xs text-slate-700 dark:text-[#A1A1AA] leading-relaxed">
+              Não. O sistema bloqueia autoindicação e cada conta só pode gerar a
+              recompensa uma vez. O código de convite não pode ser trocado depois do
+              cadastro.
+            </p>
+          </details>
+        </div>
       </section>
     </div>
   );

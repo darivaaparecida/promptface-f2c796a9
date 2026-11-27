@@ -111,6 +111,8 @@ export interface GenerationItem {
   provider: string;
   model: string;
   favorite: boolean;
+  /** Foto publicada na Galeria da Comunidade (opt-in do dono). */
+  isPublic: boolean;
   folderId?: string;
   tags: string[];
   synthIdMarked: boolean;
@@ -243,6 +245,7 @@ function generationFromRow(r: Row, url: string, versions: GenerationVersionItem[
     provider: asString(r.provider),
     model: asString(r.model),
     favorite: Boolean(r.favorite),
+    isPublic: Boolean(r.is_public),
     folderId: (r.folder_id as string | null) ?? undefined,
     tags: normalizeTagList(r.tags),
     synthIdMarked: Boolean(r.synth_id_marked),
@@ -736,6 +739,110 @@ export async function toggleFavorite(id: string): Promise<boolean> {
     .eq('user_id', profileId);
   if (updateError) throw toError(updateError, 'Não foi possível atualizar a foto.');
   return next;
+}
+
+// ------------------------- galeria da comunidade ---------------------------
+
+export interface CommunityGalleryItem {
+  id: string;
+  scenarioTitle: string;
+  categoryName: string;
+  /** Só o primeiro nome do autor (privacidade). */
+  authorName: string;
+  /** URL assinada do Storage. */
+  imageUrl: string;
+  likesCount: number;
+  likedByMe: boolean;
+  createdAt: string;
+}
+
+/**
+ * Fotos públicas da Galeria da Comunidade (só is_public + completed, 30
+ * mais recentes). A leitura passa pela função get_community_gallery(), que
+ * devolve só o primeiro nome do autor — a tabela users nunca é exposta.
+ */
+export async function listCommunityGallery(): Promise<CommunityGalleryItem[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('get_community_gallery');
+  if (error) throw toError(error, 'Não foi possível carregar a galeria.');
+  const resolved = await Promise.all(
+    ((data ?? []) as Row[]).map(async (row) => {
+      try {
+        return {
+          id: String(row.id),
+          scenarioTitle: asString(row.scenario_title),
+          categoryName: asString(row.category_name),
+          authorName: asString(row.author_first_name, 'PromptFace'),
+          imageUrl: await getSignedMediaUrl(
+            GENERATED_IMAGES_BUCKET,
+            String(row.filename ?? '')
+          ),
+          likesCount: asNumber(row.likes_count, 0),
+          likedByMe: row.liked_by_me === true,
+          createdAt: String(row.created_at ?? ''),
+        } satisfies CommunityGalleryItem;
+      } catch {
+        // Arquivo sem acesso (ex.: removido): a foto some da galeria.
+        return null;
+      }
+    })
+  );
+  return resolved.filter((item): item is CommunityGalleryItem => item !== null);
+}
+
+/**
+ * Curte (ou descurte) uma foto pública. Retorna o novo estado. Exige login.
+ */
+export async function toggleCommunityLike(generationId: string): Promise<boolean> {
+  let profileId: string;
+  try {
+    profileId = await getMyProfileId();
+  } catch {
+    throw new Error('Você precisa estar logado para curtir.');
+  }
+  const supabase = getSupabase();
+  const { data: existing, error: lookupError } = await supabase
+    .from('community_likes')
+    .select('id')
+    .eq('generation_id', generationId)
+    .eq('user_id', profileId)
+    .maybeSingle();
+  if (lookupError) throw toError(lookupError, 'Não foi possível curtir a foto.');
+  if (existing) {
+    const { error } = await supabase
+      .from('community_likes')
+      .delete()
+      .eq('id', String((existing as Row).id));
+    if (error) throw toError(error, 'Não foi possível remover a curtida.');
+    return false;
+  }
+  const { error } = await supabase
+    .from('community_likes')
+    .insert({ generation_id: generationId, user_id: profileId });
+  if (error) throw toError(error, 'Não foi possível curtir a foto.');
+  return true;
+}
+
+/**
+ * Publica (ou tira) a própria geração da Galeria da Comunidade.
+ * Retorna a geração atualizada, ou false se ela não for sua.
+ */
+export async function setGenerationPublic(
+  generationId: string,
+  isPublic: boolean
+): Promise<GenerationItem | false> {
+  const profileId = await getMyProfileId();
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('generations')
+    .update({ is_public: isPublic })
+    .eq('id', generationId)
+    .eq('user_id', profileId)
+    .select()
+    .maybeSingle();
+  if (error) throw toError(error, 'Não foi possível atualizar a foto.');
+  if (!data) return false;
+  return resolveGenerationUrls(data as Row);
 }
 
 export async function moveGenerationToFolder(

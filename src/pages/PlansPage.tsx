@@ -202,7 +202,12 @@ export function PlansPage() {
 
   const handleSubscribe = async (plan: PlanDefinition) => {
     setStatusMsg(null);
-    if (!user) return;
+    if (!user) {
+      setStatusMsg(
+        'Você precisa criar uma conta ou entrar para assinar um plano — o cadastro é grátis e já vem com 1 foto.'
+      );
+      return;
+    }
     // Fase 1: checkout Stripe desativado — precisa de servidor e chega na
     // Fase 2 via Edge Function. Mesma mensagem que o servidor devolvia.
     setStatusMsg('Pagamentos em breve — estamos finalizando a ativação das assinaturas.');

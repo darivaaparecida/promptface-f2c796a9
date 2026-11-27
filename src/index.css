@@ -58,6 +58,36 @@
   animation: shimmer-violet 2s infinite linear;
 }
 
+/* Entrada suave em cascata (listas: amigos convidados, galeria). */
+@keyframes pf-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pf-fade-in-up {
+  animation: pf-fade-in-up 0.45s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-fade-in-up {
+    animation: none;
+  }
+}
+
+/* Destaque do tour inicial: anel violeta pulsante no elemento do passo. */
+.pf-tour-highlight {
+  outline: 3px solid #8b5cf6;
+  outline-offset: 4px;
+  border-radius: 16px;
+  box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.25);
+}
+
 .dark .skeleton-violet {
   background: linear-gradient(
     90deg,

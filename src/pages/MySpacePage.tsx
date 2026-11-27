@@ -46,6 +46,7 @@ import {
   listGenerations,
   moveGenerationToFolder,
   renameFolder,
+  setGenerationPublic,
   setGenerationTags,
   toggleFavorite,
 } from '../lib/db';
@@ -155,6 +156,8 @@ interface GenerationItem {
   costCredits: number;
   status: string;
   favorite: boolean;
+  /** Foto publicada na Galeria da Comunidade (opt-in do dono). */
+  isPublic: boolean;
   folderId?: string;
   tags?: string[];
   synthIdMarked: boolean;
@@ -770,6 +773,35 @@ export function MySpacePage() {
       // Falha silenciosa, como antes: o coração só não muda de estado.
     } finally {
       setTogglingFavoriteId(null);
+    }
+  };
+
+  const handleTogglePublic = async (id: string) => {
+    const current = generations.find((g) => g.id === id);
+    if (!current) return;
+    const next = !current.isPublic;
+    try {
+      const updated = await setGenerationPublic(id, next);
+      if (!updated) return;
+      setGenerations((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, isPublic: next } : g))
+      );
+      if (lightboxItem?.id === id) {
+        setLightboxItem((prev) => (prev ? { ...prev, isPublic: next } : null));
+      }
+      addToast({
+        variant: 'success',
+        title: next ? 'Foto publicada na Galeria' : 'Foto removida da Galeria',
+        description: next
+          ? 'Qualquer visitante pode ver e curtir esta foto na Galeria da Comunidade.'
+          : 'A foto voltou a ser só sua e não aparece mais na Galeria.',
+      });
+    } catch {
+      addToast({
+        variant: 'error',
+        title: 'Não foi possível atualizar a foto',
+        description: 'Tente novamente em instantes.',
+      });
     }
   };
 
@@ -2612,6 +2644,7 @@ export function MySpacePage() {
           onChangeExportFormat={setExportFormat}
           buildRecreateUrl={buildRecreateUrl}
           onToggleFavorite={handleToggleFavorite}
+          onTogglePublic={handleTogglePublic}
           onDownload={handleDownloadImage}
           onShareInstagram={handleShareInstagram}
           downloading={downloadingId === lightboxItem.id}

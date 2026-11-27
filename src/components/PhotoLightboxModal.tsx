@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   ExternalLink,
+  Globe,
   Heart,
   Info,
   Instagram,
@@ -66,6 +67,8 @@ export interface LightboxPhotoItem {
   folderId?: string;
   tags?: string[];
   synthIdMarked: boolean;
+  /** Foto publicada na Galeria da Comunidade (opt-in do dono). */
+  isPublic: boolean;
   createdAt: string;
 }
 
@@ -87,6 +90,8 @@ interface PhotoLightboxModalProps {
   onChangeExportFormat: (format: SocialExportFormatId) => void;
   buildRecreateUrl: (item: LightboxPhotoItem) => string;
   onToggleFavorite: (photoId: string) => Promise<void>;
+  /** Publica/remove a foto da Galeria da Comunidade. */
+  onTogglePublic?: (photoId: string) => Promise<void>;
   onDownload: (item: LightboxPhotoItem, formatOverride?: SocialExportFormatId) => Promise<void>;
   onShareInstagram: (item: LightboxPhotoItem) => Promise<{
     mode: 'native' | 'downloaded';
@@ -113,6 +118,7 @@ export function PhotoLightboxModal({
   onChangeExportFormat,
   buildRecreateUrl,
   onToggleFavorite,
+  onTogglePublic,
   onDownload,
   onShareInstagram,
   downloading,
@@ -129,6 +135,7 @@ export function PhotoLightboxModal({
   const [tagError, setTagError] = useState<string | null>(null);
   const [savingTags, setSavingTags] = useState(false);
   const [togglingFavorite, setTogglingFavorite] = useState(false);
+  const [togglingPublic, setTogglingPublic] = useState(false);
   const [sharingInstagram, setSharingInstagram] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{
     network: 'whatsapp' | 'instagram' | 'twitter';
@@ -244,6 +251,16 @@ export function PhotoLightboxModal({
       await onToggleFavorite(item.id);
     } finally {
       setTogglingFavorite(false);
+    }
+  };
+
+  const handlePublicClick = async () => {
+    if (!onTogglePublic) return;
+    setTogglingPublic(true);
+    try {
+      await onTogglePublic(item.id);
+    } finally {
+      setTogglingPublic(false);
     }
   };
 
@@ -843,6 +860,30 @@ export function PhotoLightboxModal({
               )}
               <span>{item.favorite ? 'Favorita' : 'Favoritar'}</span>
             </button>
+            {onTogglePublic && (
+              <button
+                type="button"
+                disabled={togglingPublic}
+                aria-pressed={item.isPublic ?? false}
+                title="Quem visitar a Galeria da Comunidade poderá ver e curtir esta foto"
+                onClick={() => void handlePublicClick()}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-medium transition-colors disabled:opacity-60 ${
+                  item.isPublic
+                    ? 'bg-violet-100 border-violet-700 text-violet-950 dark:bg-[#7C3AED]/20 dark:border-[#8B5CF6] dark:text-white'
+                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:text-slate-950 dark:border-white/15 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white'
+                }`}
+              >
+                {togglingPublic ? (
+                  <ButtonSpinner size="md" />
+                ) : (
+                  <Globe
+                    className={`w-4 h-4 ${item.isPublic ? 'text-[#7C3AED] dark:text-[#A855F7]' : ''}`}
+                    aria-hidden="true"
+                  />
+                )}
+                <span>{item.isPublic ? 'Na Galeria' : 'Compartilhar na Galeria'}</span>
+              </button>
+            )}
             {exportFormat !== 'original' && (
               <button
                 type="button"

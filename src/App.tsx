@@ -16,6 +16,7 @@ import { MySpacePage } from './pages/MySpacePage';
 import { PlansPage } from './pages/PlansPage';
 import { LoginPage } from './pages/LoginPage';
 import { InvitePage } from './pages/InvitePage';
+import { GalleryPage } from './pages/GalleryPage';
 import { AdminPage } from './pages/AdminPage';
 import { LgpdPage, PrivacyPage, TermsPage } from './pages/LegalPages';
 import { normalizeInviteCode } from './shared/invites';
@@ -64,6 +65,7 @@ function AppShell() {
                 <Route path="/cenarios" element={<ScenariosPage />} />
                 <Route path="/planos" element={<PlansPage />} />
                 <Route path="/convites" element={<InvitePage />} />
+                <Route path="/galeria" element={<GalleryPage />} />
                 <Route path="/convite/:code" element={<InviteRedirect />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/termos" element={<TermsPage />} />

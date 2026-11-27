@@ -65,6 +65,9 @@ export function Navbar() {
           <NavLink to="/planos" className={navLinkClass}>
             Planos
           </NavLink>
+          <NavLink to="/galeria" className={navLinkClass}>
+            Galeria
+          </NavLink>
         </nav>
 
         {/* Zone 3: Theme toggle + single primary action */}
@@ -201,6 +204,13 @@ export function Navbar() {
               className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
             >
               Planos e Créditos
+            </Link>
+            <Link
+              to="/galeria"
+              onClick={() => setMobileOpen(false)}
+              className="px-3 py-3 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 dark:text-[#A1A1AA] dark:hover:text-white dark:hover:bg-white/5"
+            >
+              Galeria da Comunidade
             </Link>
             {user ? (
               <>

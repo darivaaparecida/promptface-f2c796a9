@@ -43,6 +43,7 @@ import { buildScenarioInviteLink, saveInviteCode } from '../shared/invites';
 import { useToast } from '../context/ToastContext';
 import { resolveProfileAvatarDisplay } from '../shared/defaultAvatars';
 import { ButtonSpinner } from '../components/ButtonSpinner';
+import { CreateTour } from '../components/CreateTour';
 import { ExpandableTextField } from '../components/ExpandableTextField';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { ProfileAvatar } from '../components/ProfileAvatar';
@@ -555,6 +556,7 @@ export function CreatePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 pb-24 sm:pb-24 lg:pb-12 space-y-6 sm:space-y-8">
+      <CreateTour />
       {/* Studio Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-200 dark:border-white/10">
         <div>
@@ -580,6 +582,7 @@ export function CreatePage() {
       {/* MANDATORY FLOW RULE: Visual Profile state shown AT THE TOP BEFORE generate button */}
       {!loadingProfile && !hasFaces ? (
         <div
+          data-tour="upload"
           role="region"
           aria-label="Status do Perfil Visual"
           className="rounded-2xl border border-violet-600 bg-white dark:border-[#7C3AED] dark:bg-[#17171F] p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm dark:shadow-none"
@@ -881,6 +884,7 @@ export function CreatePage() {
 
                   <button
                     type="button"
+                    data-tour="scenario"
                     onClick={() => setScenarioPickerOpen(true)}
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-violet-700 text-xs font-semibold uppercase tracking-wider text-violet-950 bg-white hover:bg-violet-50 dark:border-[#7C3AED] dark:bg-transparent dark:text-white dark:hover:bg-[#7C3AED]/15 transition-colors"
                   >
@@ -1362,6 +1366,7 @@ export function CreatePage() {
 
             <button
               type="button"
+              data-tour="generate"
               disabled={!hasFaces || !hasEnoughCredits || falBlocked || generating}
               onClick={() => runGeneration(false)}
               className="w-full inline-flex items-center justify-center gap-2 py-4 px-5 rounded-xl bg-gradient-to-r from-[#A855F7] to-[#EC4899] text-xs font-semibold uppercase tracking-wider text-white shadow-lg shadow-[#7C3AED]/25 hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed transition-all"
