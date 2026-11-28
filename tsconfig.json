@@ -26,6 +26,7 @@
   },
   "exclude": [
     "dist",
+    "supabase/functions",
     "src/components/ui",
     "src/hooks"
   ]

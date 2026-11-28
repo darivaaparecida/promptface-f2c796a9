@@ -14,6 +14,7 @@ import {
   adminSetMaintenance,
   adminUpdateCategory,
   adminUpdateScenario,
+  describeScene,
   getAdminOverview,
   uploadSiteImage,
   type AdminOverview,
@@ -87,6 +88,7 @@ export function AdminPage() {
   const [scenarioForm, setScenarioForm] = useState<ScenarioFormState>(EMPTY_SCENARIO_FORM);
   const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
   const [savingScenario, setSavingScenario] = useState(false);
+  const [describingScene, setDescribingScene] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [togglingScenarioId, setTogglingScenarioId] = useState<string | null>(null);
   const [deletingScenarioId, setDeletingScenarioId] = useState<string | null>(null);
@@ -244,6 +246,36 @@ export function AdminPage() {
       });
     } finally {
       setSavingScenario(false);
+    }
+  };
+
+  const handleDescribeFromPhoto = async (file: File) => {
+    setDescribingScene(true);
+    try {
+      const url = await uploadSiteImage(file, 'cenario-foto');
+      const scene = await describeScene(url);
+      setScenarioForm((f) => ({
+        ...f,
+        image: url,
+        title: scene.title,
+        description: scene.description,
+        outfit: scene.outfit,
+        environment: scene.environment,
+        pose: scene.pose,
+        lighting: scene.lighting,
+        style: scene.style,
+      }));
+      setEditingScenarioId(null);
+      setFeedback('Campos preenchidos pela IA a partir da foto — revise antes de salvar.');
+    } catch (err) {
+      addToast({
+        title: 'Erro ao descrever a foto',
+        description:
+          err instanceof Error ? err.message : 'Não foi possível descrever a foto.',
+        variant: 'error',
+      });
+    } finally {
+      setDescribingScene(false);
     }
   };
 
@@ -648,6 +680,33 @@ export function AdminPage() {
             <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
               {editingScenarioId ? 'Editar cenário' : 'Novo cenário'}
             </h2>
+            <div className="rounded-xl border border-dashed border-violet-400/60 bg-violet-50/50 dark:bg-[#7C3AED]/5 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium text-slate-950 dark:text-white">
+                  Criar a partir de foto
+                </p>
+                <p className="text-xs text-slate-700 dark:text-[#A1A1AA]">
+                  Envie a foto da cena e a IA preenche título, descrição, roupa, ambiente,
+                  pose, luz e estilo. Você revisa tudo antes de salvar — o rosto da foto
+                  nunca é descrito.
+                </p>
+              </div>
+              <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#6D28D9] cursor-pointer whitespace-nowrap">
+                {describingScene && <ButtonSpinner size="xs" />}
+                <span>{describingScene ? 'Descrevendo...' : 'Enviar foto e descrever'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={describingScene}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) void handleDescribeFromPhoto(file);
+                  }}
+                />
+              </label>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-slate-700 dark:text-[#A1A1AA] mb-1">Título</label>
@@ -722,8 +781,8 @@ export function AdminPage() {
                   )}
                 </div>
                 <p className="mt-1 text-xs text-slate-700 dark:text-[#A1A1AA]">
-                  A imagem enviada é comprimida e vai para o Storage do site. Em breve será
-                  possível gerar os campos do cenário direto da foto.
+                  A imagem enviada é comprimida e vai para o Storage do site. Use o botão
+                  "Enviar foto e descrever" acima para a IA preencher os campos da foto.
                 </p>
               </div>
               <div>

@@ -1601,6 +1601,45 @@ export async function uploadSiteImage(file: File, name: string): Promise<string>
   return data.publicUrl;
 }
 
+/**
+ * Descreve uma foto de cena via Edge Function describe-scene (Gemini visão,
+ * Fase 3): devolve título, descrição e os 5 campos do cenário. A função só
+ * aceita admin e a IA descreve só a cena, nunca o rosto da foto. Precisa da
+ * GEMINI_API_KEY como segredo do Supabase; sem ela, a função responde 500.
+ */
+export interface SceneDescription {
+  title: string;
+  description: string;
+  outfit: string;
+  environment: string;
+  pose: string;
+  lighting: string;
+  style: string;
+}
+
+export async function describeScene(imageUrl: string): Promise<SceneDescription> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.functions.invoke('describe-scene', {
+    body: { imageUrl },
+  });
+  if (error) throw toError(error, 'Não foi possível descrever a foto.');
+  const result = (data ?? {}) as Partial<SceneDescription>;
+  const title = asString(result.title, '');
+  const description = asString(result.description, '');
+  if (!title || !description) {
+    throw new Error('A IA não devolveu título e descrição. Tente de novo.');
+  }
+  return {
+    title,
+    description,
+    outfit: asString(result.outfit, ''),
+    environment: asString(result.environment, ''),
+    pose: asString(result.pose, ''),
+    lighting: asString(result.lighting, ''),
+    style: asString(result.style, ''),
+  };
+}
+
 export async function adminSetFalQuota(
   falFreeLimit: number,
   falImagesUsed: number
