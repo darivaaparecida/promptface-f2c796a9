@@ -1246,7 +1246,7 @@ export function CreatePage() {
                 Resumo antes de confirmar
               </h2>
               <p className="mt-1 text-xs text-slate-600 dark:text-[#A1A1AA]">
-                Confira o cenário, o formato e o custo exato em créditos. Se houver falha, o estorno é automático.
+                Confira o cenário, o formato e o custo exato em créditos. Se houver falha, nada é cobrado.
               </p>
             </div>
 
