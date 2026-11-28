@@ -53,28 +53,28 @@ export interface BeforeAfterPair {
 
 export const HERO_SHOWCASE_IMAGES = [
   {
-    id: 'hero-dubai',
-    label: 'Dubai · Pôr do Sol',
-    caption: 'Pôr do sol em Dubai com Lamborghini preta',
-    image: '/src/assets/images/hero_dubai_lambo_1795644049769.jpg',
+    id: 'hero-deserto',
+    label: 'Deserto · Dubai',
+    caption: 'Falcão no deserto de Dubai',
+    image: 'https://fbpgsastfracksfvunpd.supabase.co/storage/v1/object/public/site-images/hero-deserto-falcao.webp',
   },
   {
-    id: 'hero-paris',
-    label: 'Paris · Editorial',
-    caption: 'Editorial de moda em Paris',
-    image: '/src/assets/images/hero_paris_editorial_1795644049860.jpg',
+    id: 'hero-favela',
+    label: 'Favela · Carros de Luxo',
+    caption: 'Noite de luxo na favela com superesportivos',
+    image: 'https://fbpgsastfracksfvunpd.supabase.co/storage/v1/object/public/site-images/hero-favela-carros.webp',
   },
   {
-    id: 'hero-office',
+    id: 'hero-executivo',
     label: 'Executivo · CEO',
-    caption: 'CEO em escritório de luxo',
-    image: '/src/assets/images/hero_luxury_office_1795644050857.jpg',
+    caption: 'CEO em lounge de luxo',
+    image: 'https://fbpgsastfracksfvunpd.supabase.co/storage/v1/object/public/site-images/hero-executivo.webp',
   },
   {
-    id: 'hero-beach',
-    label: 'Praia · Noronha',
-    caption: 'Praia paradisíaca ao entardecer',
-    image: '/src/assets/images/hero_tropical_beach_1795644051938.jpg',
+    id: 'hero-neve',
+    label: 'Neve · Esqui nos Alpes',
+    caption: 'Esqui nas montanhas nevadas',
+    image: 'https://fbpgsastfracksfvunpd.supabase.co/storage/v1/object/public/site-images/hero-neve-esqui.webp',
   },
 ];
 
