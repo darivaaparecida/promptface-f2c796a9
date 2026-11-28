@@ -41,10 +41,12 @@ import {
 } from '../shared/providerQuota';
 import { validateNewFolderName, validateRenameFolder, type FolderItem } from '../shared/photoFolders';
 import { MAX_TAGS_PER_PHOTO, normalizeTagList, normalizeTagName } from '../shared/photoTags';
+import { slugify } from '../shared/slugs';
 import type { VisualProfileData } from '../shared/rules';
 
 export const FACE_REFERENCES_BUCKET = 'face-references';
 export const GENERATED_IMAGES_BUCKET = 'generated-images';
+export const SITE_IMAGES_BUCKET = 'site-images';
 
 /** Validade das URLs assinadas de mídia (7 dias). A lista é recarregada a cada visita. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -1364,6 +1366,239 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     falQuota,
     dailyStats30d: buildAdminDailyStats({ users, generations, days: 30 }),
   };
+}
+
+/**
+ * Administração do catálogo — só admin (o RLS exige is_admin() para
+ * insert/update/delete em categories e scenarios). Cada escrita limpa o
+ * cache do loadCatalog para o site e o painel verem o dado novo na hora.
+ */
+export function invalidateCatalogCache(): void {
+  catalogCache = null;
+  catalogPromise = null;
+}
+
+export interface AdminCategoryInput {
+  name: string;
+  description: string;
+  image: string;
+}
+
+export interface AdminScenarioInput {
+  categoryId: string;
+  title: string;
+  description: string;
+  image: string;
+  defaultOutfit: string;
+  defaultEnvironment: string;
+  defaultPose: string;
+  defaultLighting: string;
+  defaultStyle: string;
+  popular: boolean;
+  active: boolean;
+}
+
+function requireText(value: string, label: string): string {
+  const text = value.trim();
+  if (!text) throw new Error(`${label} é obrigatório.`);
+  return text;
+}
+
+async function nextSortOrder(table: 'categories' | 'scenarios'): Promise<number> {
+  const supabase = getSupabase();
+  const { data } = await supabase.from(table).select('sort_order').order('sort_order', { ascending: false }).limit(1);
+  const rows = (data ?? []) as Row[];
+  return asNumber(rows[0]?.sort_order, -1) + 1;
+}
+
+export async function adminCreateCategory(input: AdminCategoryInput): Promise<CategoryItem> {
+  const name = requireText(input.name, 'O nome da categoria');
+  const description = requireText(input.description, 'A descrição da categoria');
+  const image = requireText(input.image, 'A imagem de capa da categoria');
+  const supabase = getSupabase();
+  const baseSlug = slugify(name);
+  let slug = baseSlug;
+  let suffix = 2;
+  for (;;) {
+    const { data } = await supabase.from('categories').select('id').eq('id', slug).limit(1);
+    if (((data ?? []) as Row[]).length === 0) break;
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+  const row = {
+    id: slug,
+    name,
+    slug,
+    description,
+    image,
+    sort_order: await nextSortOrder('categories'),
+  };
+  const { data, error } = await supabase.from('categories').insert(row).select('*').single();
+  if (error) throw toError(error, 'Não foi possível criar a categoria.');
+  invalidateCatalogCache();
+  return categoryFromRow(data as Row);
+}
+
+export async function adminUpdateCategory(
+  id: string,
+  patch: Partial<AdminCategoryInput>
+): Promise<CategoryItem> {
+  const supabase = getSupabase();
+  const update: Record<string, unknown> = {};
+  if (patch.name !== undefined) update.name = requireText(patch.name, 'O nome da categoria');
+  if (patch.description !== undefined) {
+    update.description = requireText(patch.description, 'A descrição da categoria');
+  }
+  if (patch.image !== undefined) update.image = requireText(patch.image, 'A imagem de capa da categoria');
+  if (Object.keys(update).length === 0) throw new Error('Nada para atualizar.');
+  const { data, error } = await supabase
+    .from('categories')
+    .update(update)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw toError(error, 'Não foi possível atualizar a categoria.');
+  invalidateCatalogCache();
+  return categoryFromRow(data as Row);
+}
+
+export async function adminDeleteCategory(id: string): Promise<void> {
+  const supabase = getSupabase();
+  const { count, error: countError } = await supabase
+    .from('scenarios')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', id);
+  if (countError) throw toError(countError, 'Não foi possível excluir a categoria.');
+  if ((count ?? 0) > 0) {
+    throw new Error(
+      'Esta categoria ainda tem cenários. Mova ou exclua os cenários dela antes de excluir a categoria.'
+    );
+  }
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) throw toError(error, 'Não foi possível excluir a categoria.');
+  invalidateCatalogCache();
+}
+
+export async function adminCreateScenario(input: AdminScenarioInput): Promise<ScenarioItem> {
+  const title = requireText(input.title, 'O título do cenário');
+  const description = requireText(input.description, 'A descrição do cenário');
+  const image = requireText(input.image, 'A imagem de capa do cenário');
+  const categoryId = requireText(input.categoryId, 'A categoria do cenário');
+  const supabase = getSupabase();
+  const { data: categoryData, error: categoryError } = await supabase
+    .from('categories')
+    .select('id, name')
+    .eq('id', categoryId)
+    .limit(1);
+  if (categoryError) throw toError(categoryError, 'Não foi possível criar o cenário.');
+  const categoryRows = (categoryData ?? []) as Row[];
+  if (categoryRows.length === 0) throw new Error('Categoria não encontrada.');
+  const categoryName = asString(categoryRows[0]?.name, categoryId);
+  // id no padrão do catálogo: <categoria>-<número sequencial da categoria>.
+  const { count } = await supabase
+    .from('scenarios')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', categoryId);
+  let n = (count ?? 0) + 1;
+  let scenarioId = `${categoryId}-${n}`;
+  for (;;) {
+    const { data } = await supabase.from('scenarios').select('id').eq('id', scenarioId).limit(1);
+    if (((data ?? []) as Row[]).length === 0) break;
+    n += 1;
+    scenarioId = `${categoryId}-${n}`;
+  }
+  const row = {
+    id: scenarioId,
+    category_id: categoryId,
+    category_name: categoryName,
+    title,
+    description,
+    image,
+    default_outfit: input.defaultOutfit.trim(),
+    default_environment: input.defaultEnvironment.trim(),
+    default_pose: input.defaultPose.trim(),
+    default_lighting: input.defaultLighting.trim(),
+    default_style: input.defaultStyle.trim(),
+    popular: input.popular === true,
+    active: input.active !== false,
+    sort_order: await nextSortOrder('scenarios'),
+  };
+  const { data, error } = await supabase.from('scenarios').insert(row).select('*').single();
+  if (error) throw toError(error, 'Não foi possível criar o cenário.');
+  invalidateCatalogCache();
+  return scenarioFromRow(data as Row);
+}
+
+export async function adminUpdateScenario(
+  id: string,
+  patch: Partial<AdminScenarioInput>
+): Promise<ScenarioItem> {
+  const supabase = getSupabase();
+  const update: Record<string, unknown> = {};
+  if (patch.title !== undefined) update.title = requireText(patch.title, 'O título do cenário');
+  if (patch.description !== undefined) {
+    update.description = requireText(patch.description, 'A descrição do cenário');
+  }
+  if (patch.image !== undefined) update.image = requireText(patch.image, 'A imagem de capa do cenário');
+  if (patch.categoryId !== undefined) {
+    const categoryId = requireText(patch.categoryId, 'A categoria do cenário');
+    const { data: categoryData, error: categoryError } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('id', categoryId)
+      .limit(1);
+    if (categoryError) throw toError(categoryError, 'Não foi possível atualizar o cenário.');
+    const categoryRows = (categoryData ?? []) as Row[];
+    if (categoryRows.length === 0) throw new Error('Categoria não encontrada.');
+    update.category_id = categoryId;
+    update.category_name = asString(categoryRows[0]?.name, categoryId);
+  }
+  if (patch.defaultOutfit !== undefined) update.default_outfit = patch.defaultOutfit.trim();
+  if (patch.defaultEnvironment !== undefined) {
+    update.default_environment = patch.defaultEnvironment.trim();
+  }
+  if (patch.defaultPose !== undefined) update.default_pose = patch.defaultPose.trim();
+  if (patch.defaultLighting !== undefined) update.default_lighting = patch.defaultLighting.trim();
+  if (patch.defaultStyle !== undefined) update.default_style = patch.defaultStyle.trim();
+  if (patch.popular !== undefined) update.popular = patch.popular === true;
+  if (patch.active !== undefined) update.active = patch.active !== false;
+  if (Object.keys(update).length === 0) throw new Error('Nada para atualizar.');
+  const { data, error } = await supabase
+    .from('scenarios')
+    .update(update)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw toError(error, 'Não foi possível atualizar o cenário.');
+  invalidateCatalogCache();
+  return scenarioFromRow(data as Row);
+}
+
+export async function adminDeleteScenario(id: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from('scenarios').delete().eq('id', id);
+  if (error) throw toError(error, 'Não foi possível excluir o cenário.');
+  invalidateCatalogCache();
+}
+
+/**
+ * Sobe uma imagem de capa (categoria ou cenário) para o bucket público
+ * site-images, com o mesmo tratamento leve das fotos do hero: no máximo
+ * 1024 px no lado maior e WebP q0.85. Devolve a URL pública da imagem.
+ */
+export async function uploadSiteImage(file: File, name: string): Promise<string> {
+  if (file.size > MAX_FACE_FILE_BYTES) {
+    throw new Error('Envie uma imagem válida (máximo 6 MB).');
+  }
+  const prepared = await prepareImageForUpload(file);
+  const supabase = getSupabase();
+  const storagePath = `covers/${slugify(name)}-${crypto.randomUUID().slice(0, 8)}.${extensionForMime(prepared.mimeType)}`;
+  const { error: uploadError } = await supabase.storage
+    .from(SITE_IMAGES_BUCKET)
+    .upload(storagePath, prepared.blob, { contentType: prepared.mimeType, upsert: false });
+  if (uploadError) throw toError(uploadError, 'Não foi possível enviar a imagem.');
+  const { data } = supabase.storage.from(SITE_IMAGES_BUCKET).getPublicUrl(storagePath);
+  return data.publicUrl;
 }
 
 export async function adminSetFalQuota(
