@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check, Heart, Images, MessageCircle, Share2, Twitter } from 'lucide-react';
+import { Check, Heart, Images, MessageCircle, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
@@ -9,7 +9,7 @@ import {
   type CommunityGalleryItem,
 } from '../lib/db';
 import { ImageWithFallback } from '../components/ImageWithFallback';
-import { buildTwitterShareUrl, buildWhatsAppShareUrl } from '../shared/socialShare';
+import { buildWhatsAppShareUrl } from '../shared/socialShare';
 
 /**
  * Galeria da Comunidade — página pública. Só aparecem as fotos que o dono
@@ -173,11 +173,6 @@ export function GalleryPage() {
               categoryName: item.categoryName,
               appUrl: `${window.location.origin}/galeria`,
             });
-            const twitterUrl = buildTwitterShareUrl({
-              scenarioTitle: item.scenarioTitle,
-              categoryName: item.categoryName,
-              appUrl: `${window.location.origin}/galeria`,
-            });
             return (
               <article
                 key={item.id}
@@ -238,15 +233,6 @@ export function GalleryPage() {
                       className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-emerald-700/45 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50 transition-colors"
                     >
                       <MessageCircle className="w-4 h-4" aria-hidden="true" />
-                    </a>
-                    <a
-                      href={twitterUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Compartilhar no X (Twitter)"
-                      className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-300 bg-slate-100 text-slate-800 hover:text-slate-950 dark:border-white/15 dark:bg-[#08080C] dark:text-[#A1A1AA] dark:hover:text-white transition-colors"
-                    >
-                      <Twitter className="w-4 h-4" aria-hidden="true" />
                     </a>
                   </div>
                 </div>

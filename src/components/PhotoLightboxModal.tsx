@@ -18,7 +18,6 @@ import {
   RotateCcw,
   Share2,
   Tag,
-  Twitter,
   X,
   ZoomIn,
   ZoomOut,
@@ -44,7 +43,6 @@ import {
 } from '../shared/photoTags';
 import {
   buildShareCaption,
-  buildTwitterShareUrl,
   buildWhatsAppShareUrl,
 } from '../shared/socialShare';
 
@@ -138,7 +136,7 @@ export function PhotoLightboxModal({
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [sharingInstagram, setSharingInstagram] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{
-    network: 'whatsapp' | 'instagram' | 'twitter';
+    network: 'whatsapp' | 'instagram';
     text: string;
   } | null>(null);
 
@@ -161,9 +159,8 @@ export function PhotoLightboxModal({
     appUrl: appOrigin,
   };
   const whatsappShareUrl = buildWhatsAppShareUrl(sharePayload);
-  const twitterShareUrl = buildTwitterShareUrl(sharePayload);
 
-  const handleCopyShareCaption = async (network: 'whatsapp' | 'twitter', label: string) => {
+  const handleCopyShareCaption = async (network: 'whatsapp', label: string) => {
     const caption = buildShareCaption(sharePayload);
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -751,18 +748,6 @@ export function PhotoLightboxModal({
                 )}
                 <span>{sharingInstagram ? 'Preparando...' : 'Instagram'}</span>
               </button>
-
-              <a
-                href={twitterShareUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => void handleCopyShareCaption('twitter', 'Twitter')}
-                aria-label="Compartilhar no Twitter"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sky-600/45 bg-sky-50 text-xs font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-400/35 dark:bg-sky-950/25 dark:text-sky-200 dark:hover:bg-sky-900/40 transition-colors whitespace-nowrap"
-              >
-                <Twitter className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Twitter</span>
-              </a>
             </div>
           </div>
 
