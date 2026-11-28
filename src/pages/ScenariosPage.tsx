@@ -1,21 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Check, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
-import {
-  CATEGORIES,
-  INITIAL_SCENARIOS,
-  type CategoryItem,
-  type ScenarioItem,
-} from '../shared/catalog';
 import { filterScenarios } from '../shared/rules';
+import { useCatalog } from '../shared/useCatalog';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 
 export function ScenariosPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCat = searchParams.get('categoria') || 'all';
 
-  const [categories] = useState<CategoryItem[]>(CATEGORIES);
-  const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
+  const { categories, scenarios } = useCatalog();
   const [selectedCategory, setSelectedCategory] = useState(initialCat);
   const [query, setQuery] = useState('');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);

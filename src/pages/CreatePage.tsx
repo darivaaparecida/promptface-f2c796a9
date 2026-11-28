@@ -25,11 +25,9 @@ import {
   X,
 } from 'lucide-react';
 import {
-  CATEGORIES,
   CUSTOMIZATION_OPTIONS,
-  INITIAL_SCENARIOS,
-  type ScenarioItem,
 } from '../shared/catalog';
+import { useCatalog } from '../shared/useCatalog';
 import { CREDIT_COSTS } from '../shared/rules';
 import {
   getPreferredAiModelOption,
@@ -91,15 +89,15 @@ export function CreatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const { categories, scenarios } = useCatalog();
   const initialPromptParam = searchParams.get('prompt') || '';
   const initialMode =
     searchParams.get('modo') === 'livre' || (initialPromptParam && !searchParams.get('cenario'))
       ? 'free'
       : 'preset';
-  const initialScenarioId = searchParams.get('cenario') || INITIAL_SCENARIOS[0].id;
+  const initialScenarioId = searchParams.get('cenario') || scenarios[0]?.id || 'luxo-1';
 
   const [mode, setMode] = useState<'preset' | 'free'>(initialMode);
-  const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId);
   const [scenarioPickerOpen, setScenarioPickerOpen] = useState(false);
@@ -173,8 +171,8 @@ export function CreatePage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [scenarioPickerOpen]);
 
-  // O catálogo (cenários) vem do código (src/shared/catalog.ts) — o estado
-  // já nasce com INITIAL_SCENARIOS e não há busca no servidor nesta fase.
+  // O catálogo (cenários) vem do Supabase (useCatalog) com fallback para o
+  // código (src/shared/catalog.ts) se a leitura do banco falhar.
 
   useEffect(() => {
     let cancelled = false;
@@ -881,7 +879,7 @@ export function CreatePage() {
                         className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-950 focus:outline-none focus:border-violet-700 dark:bg-[#0D0D14] dark:border-white/15 dark:text-white dark:focus:border-[#8B5CF6]"
                       >
                         <option value="all">Todas as categorias ({scenarios.length})</option>
-                        {CATEGORIES.map((cat) => (
+                        {categories.map((cat) => (
                           <option key={cat.id} value={cat.id}>
                             {cat.name}
                           </option>

@@ -15,9 +15,11 @@ import {
   INITIAL_PLANS,
   INITIAL_SCENARIOS,
   type BillingInterval,
+  type CategoryItem,
   type PaidPlanId,
   type PlanDefinition,
   type PlanId,
+  type ScenarioItem,
 } from '../shared/catalog';
 import { getPlanCyclePricing } from '../shared/plansCalculator';
 import {
@@ -1223,13 +1225,80 @@ function computeAdminMetrics(
 }
 
 /**
+ * Catálogo (categorias + cenários) — fonte: tabelas public.categories e
+ * public.scenarios no Supabase, com fallback para o código
+ * (CATEGORIES / INITIAL_SCENARIOS) se a leitura falhar ou vier vazia.
+ * O resultado fica em cache no módulo: as páginas leem o catálogo do código
+ * no primeiro paint e trocam pelos dados do banco quando chegam, sem loading.
+ * A escrita (criar/editar/excluir) é só do admin, via RLS (is_admin()).
+ */
+export interface LoadedCatalog {
+  categories: CategoryItem[];
+  scenarios: ScenarioItem[];
+}
+
+let catalogCache: LoadedCatalog | null = null;
+let catalogPromise: Promise<LoadedCatalog | null> | null = null;
+
+function categoryFromRow(row: Row): CategoryItem {
+  return {
+    id: asString(row.id),
+    name: asString(row.name),
+    slug: asString(row.slug),
+    description: asString(row.description),
+    image: asString(row.image),
+  };
+}
+
+function scenarioFromRow(row: Row): ScenarioItem {
+  return {
+    id: asString(row.id),
+    categoryId: asString(row.category_id),
+    categoryName: asString(row.category_name),
+    title: asString(row.title),
+    description: asString(row.description),
+    image: asString(row.image),
+    defaultOutfit: asString(row.default_outfit),
+    defaultEnvironment: asString(row.default_environment),
+    defaultPose: asString(row.default_pose),
+    defaultLighting: asString(row.default_lighting),
+    defaultStyle: asString(row.default_style),
+    popular: row.popular === true,
+    active: row.active !== false,
+  };
+}
+
+export function loadCatalog(): Promise<LoadedCatalog | null> {
+  if (catalogCache) return Promise.resolve(catalogCache);
+  if (catalogPromise) return catalogPromise;
+  catalogPromise = (async () => {
+    try {
+      const supabase = getSupabase();
+      const [categoriesRes, scenariosRes] = await Promise.all([
+        supabase.from('categories').select('*').order('sort_order', { ascending: true }),
+        supabase.from('scenarios').select('*').order('sort_order', { ascending: true }),
+      ]);
+      if (categoriesRes.error || scenariosRes.error) return null;
+      const categories = ((categoriesRes.data ?? []) as Row[]).map(categoryFromRow);
+      const scenarios = ((scenariosRes.data ?? []) as Row[]).map(scenarioFromRow);
+      if (categories.length === 0 || scenarios.length === 0) return null;
+      catalogCache = { categories, scenarios };
+      return catalogCache;
+    } catch {
+      return null;
+    }
+  })();
+  return catalogPromise;
+}
+
+/**
  * Visão geral do admin — mesma resposta que /api/admin/overview devolvia.
- * O catálogo vem do código (CATEGORIES / INITIAL_SCENARIOS / INITIAL_PLANS);
- * a edição de cenários e planos pelo painel está pausada nesta fase (o
- * catálogo agora vive no código e publica junto com o site).
+ * O catálogo vem do banco (loadCatalog, com fallback para o código);
+ * os planos continuam no código (INITIAL_PLANS).
  */
 export async function getAdminOverview(): Promise<AdminOverview> {
   const supabase = getSupabase();
+  const catalog = await loadCatalog();
   const [usersRes, generationsRes, paymentsRes, noticesRes, moderationRes, waitlistRes, settingsRes] =
     await Promise.all([
       supabase.from('users').select('*').order('created_at', { ascending: true }),
@@ -1285,8 +1354,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     metrics: computeAdminMetrics(users, generations, payments),
     users,
     generations,
-    categories: CATEGORIES,
-    scenarios: INITIAL_SCENARIOS,
+    categories: catalog?.categories ?? CATEGORIES,
+    scenarios: catalog?.scenarios ?? INITIAL_SCENARIOS,
     plans: INITIAL_PLANS,
     notices: ((noticesRes.data ?? []) as Row[]).map(noticeFromRow),
     moderationLogs: ((moderationRes.data ?? []) as Row[]).map(moderationFromRow),

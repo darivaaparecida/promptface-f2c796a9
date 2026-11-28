@@ -3,16 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
-  CATEGORIES,
   FAQ_ITEMS,
   HERO_SHOWCASE_IMAGES,
   INITIAL_PLANS,
-  INITIAL_SCENARIOS,
   type BillingInterval,
-  type CategoryItem,
   type PlanDefinition,
-  type ScenarioItem,
 } from '../shared/catalog';
+import { useCatalog } from '../shared/useCatalog';
 import { getPlanCyclePricing } from '../shared/plansCalculator';
 import { saveInviteCode } from '../shared/invites';
 import { BeforeAfterShowcase } from '../components/BeforeAfterSlider';
@@ -34,8 +31,7 @@ export function HomePage() {
     saveInviteCode(searchParams.get('ref'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [categories] = useState<CategoryItem[]>(CATEGORIES);
-  const [scenarios] = useState<ScenarioItem[]>(INITIAL_SCENARIOS);
+  const { categories, scenarios } = useCatalog();
   const [plans] = useState<PlanDefinition[]>(INITIAL_PLANS);
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('quarterly');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
